@@ -1,0 +1,5 @@
+insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types)
+values('article-images','article-images',true,5242880,array['image/png','image/jpeg','image/webp']);
+create policy image_read on storage.objects for select to authenticated using(bucket_id='article-images' and (storage.foldername(name))[1]=(select private.tenant_id())::text);
+create policy image_upload on storage.objects for insert to authenticated with check(bucket_id='article-images' and (storage.foldername(name))[1]=(select private.tenant_id())::text);
+create policy image_delete on storage.objects for delete to authenticated using(bucket_id='article-images' and (storage.foldername(name))[1]=(select private.tenant_id())::text);

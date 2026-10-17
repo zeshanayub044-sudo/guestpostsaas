@@ -1,0 +1,7 @@
+project_id = "guest-post-saas"
+
+[functions.api]
+verify_jwt = false
+
+[functions.publish-worker]
+verify_jwt = false
