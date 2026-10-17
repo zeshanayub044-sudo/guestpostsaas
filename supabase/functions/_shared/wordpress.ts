@@ -14,7 +14,7 @@ export class WordPress {
   async test(){
     const {data}=await this.request(this.endpoint+'/users/me?context=edit','GET',this.headers);
     if(!data?.capabilities?.publish_posts)throw new RemoteError('This WordPress account does not have permission to publish posts.',403);
-    return {account:String(data.name??data.slug),id:data.id};
+    return {account:String(data.name??data.slug),id:data.id,permission_status:'verified',message:'WordPress account and publishing permission verified.'};
   }
   async terms(taxonomy:string,names:string[]):Promise<number[]>{
     const ids:number[]=[];
@@ -34,7 +34,7 @@ export class WordPress {
       const post=data.find((p:any)=>p.slug===job.remote_slug);
       if(!post)throw new RemoteError('Unknown prior outcome: no matching remote post found. Verify the WordPress posts/trash before cancelling and creating a new job.',0,0,true);
       remoteId=post.id;
-      if(!await rpc('save_remote_id',{p_job:job.id,p_token:job.lease_token,p_remote_id:remoteId}))throw new Error('Worker lease expired.');
+      if(!await rpc('save_remote_id',{p_job:job.id,p_token:job.lease_token,p_remote_id:String(remoteId)}))throw new Error('Worker lease expired.');
       job.remote_post_id=remoteId;
     }
     if(!remoteId){
@@ -63,7 +63,7 @@ export class WordPress {
       const {data}=await this.request(this.endpoint+'/posts','POST',this.headers,JSON.stringify({title:article.title,content:cleanHTML(article.content),slug:job.remote_slug,status:'draft',excerpt:article.meta_description,categories,tags,...(meta?{meta}:{}),...(featured_media?{featured_media}:{})}));
       remoteId=data.id;
       if(!Number.isInteger(remoteId))throw new RemoteError('WordPress did not return a post ID.',0,0,true);
-      if(!await rpc('save_remote_id',{p_job:job.id,p_token:job.lease_token,p_remote_id:remoteId}))throw new RemoteError('Could not persist remote post ID; reconcile before retrying.',0,0,true);
+      if(!await rpc('save_remote_id',{p_job:job.id,p_token:job.lease_token,p_remote_id:String(remoteId)}))throw new RemoteError('Could not persist remote post ID; reconcile before retrying.',0,0,true);
       job.remote_post_id=remoteId;
     }
     const {data}=await this.request(this.endpoint+'/posts/'+remoteId,'POST',this.headers,JSON.stringify({status:'publish'}));

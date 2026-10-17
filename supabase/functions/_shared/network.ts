@@ -8,7 +8,7 @@ export function publicIP(address:string):boolean {
   try{return ipaddr.parse(address).range()==='unicast';}catch{return false;}
 }
 const encoder=new TextEncoder(),decoder=new TextDecoder();
-export async function request(url:string,method='GET',headers:Record<string,string>={},body?:string|Uint8Array,timeoutMs=25000):Promise<{status:number;headers:Record<string,string>;data:any}>{
+export async function request(url:string,method='GET',headers:Record<string,string>={},body?:string|Uint8Array,timeoutMs=25000,format:'json'|'text'='json'):Promise<{status:number;headers:Record<string,string>;data:any}>{
   const u=canonicalURL(url),mutates=['POST','PUT','PATCH','DELETE'].includes(method);
   const payload=body===undefined?new Uint8Array():typeof body==='string'?encoder.encode(body):body;
   let socket:Deno.Conn|Deno.TlsConn|undefined,timedOut=false,timer:number|undefined;
@@ -62,8 +62,8 @@ export async function request(url:string,method='GET',headers:Record<string,stri
       add(pending);pending=new Uint8Array();while(await more()){add(pending);pending=new Uint8Array();}
     }
     const response=new Uint8Array(size);let offset=0;for(const c of chunks){response.set(c,offset);offset+=c.length;}
-    let data:any;try{data=JSON.parse(decoder.decode(response));}catch{if(status>=400)throw new RemoteError(`WordPress API returned HTTP ${status}.`,status,Math.min(604800,wait||0),mutates&&status>=500);throw new RemoteError('The website returned an invalid JSON response.',status,0,mutates);}
-    if(status>=400)throw new RemoteError(`WordPress API returned HTTP ${status}${data?.code?` (${String(data.code).replace(/[^a-z0-9_]/gi,'').slice(0,60)})`:''}.`,status,Math.min(604800,wait||0),mutates&&status>=500);
+    let data:any;try{data=format==='text'?decoder.decode(response):JSON.parse(decoder.decode(response));}catch{if(status>=400)throw new RemoteError(`Publishing API returned HTTP ${status}.`,status,Math.min(604800,wait||0),mutates&&status>=500);throw new RemoteError('The website returned an invalid JSON response.',status,0,mutates);}
+    if(status>=400)throw new RemoteError(`Publishing API returned HTTP ${status}${data?.code?` (${String(data.code).replace(/[^a-z0-9_]/gi,'').slice(0,60)})`:''}.`,status,Math.min(604800,wait||0),mutates&&status>=500);
     return {status,headers:h,data};
   };
   try{return await Promise.race([perform(),timeout]);}

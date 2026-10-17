@@ -2,7 +2,8 @@
   "imports": {
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.95.3",
     "sanitize-html": "npm:sanitize-html@2.17.0",
-    "ipaddr.js": "npm:ipaddr.js@2.2.0"
+    "ipaddr.js": "npm:ipaddr.js@2.2.0",
+    "htmlparser2": "npm:htmlparser2@8.0.2"
   },
   "compilerOptions": { "strict": true, "lib": ["deno.ns", "dom", "esnext"], "types": ["npm:@types/sanitize-html@2.16.0"] }
 }

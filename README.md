@@ -1,116 +1,97 @@
-# GuestPost
+# GuestPost Universal — Version 2
 
-A vanilla JavaScript publishing workspace backed by an isolated Supabase project. Connect authorized WordPress sites, approve editorial content, and run persistent campaigns with controlled pacing.
+A vanilla JavaScript publishing workspace with platform-specific connectors, Supabase Auth, encrypted credentials and a persistent sequential publishing queue.
 
-## Deployment status
+- [Live application](https://zeshanayub044-sudo.github.io/guestpostsaas/)
+- [Repository](https://github.com/zeshanayub044-sudo/guestpostsaas)
+- Dedicated Supabase project: **guest posts saas**, `aiolueflrpraiaqvdscp`, Mumbai.
+- [Deployment and provider setup](DEPLOYMENT.md) · [Verified results and remaining acceptance](TEST-RESULTS.md)
 
-- Supabase project: **guest posts saas** — `aiolueflrpraiaqvdscp` (Mumbai).
-- [Supabase dashboard](https://supabase.com/dashboard/project/aiolueflrpraiaqvdscp)
-- Frontend source, backend source, and a GitHub Pages workflow are included.
-- Repository: [zeshanayub044-sudo/guestpostsaas](https://github.com/zeshanayub044-sudo/guestpostsaas).
-- Frontend: [GuestPost](https://zeshanayub044-sudo.github.io/guestpostsaas/). See [DEPLOYMENT.md](DEPLOYMENT.md) for Auth setup and deployment details.
-- Actual test results and remaining verification are in [TEST-RESULTS.md](TEST-RESULTS.md).
+## Workflow
 
-## Local development
+1. Add an authorized HTTPS website. GuestPost detects common platforms and guides its supported connection method.
+2. Paste or import one article, optionally attach an optimized public image, and choose 1–500 publications.
+3. Select automatic, manual or category-based allocation. Language and platform filters are optional.
+4. Preview the article, target list, website shortage, warnings and estimated schedule. Confirm editorial review and website authorization.
+5. Start the campaign. Supabase continues processing after logout or browser closure; monitor progress, errors and confirmed public URLs.
 
-Requires Node.js 22.12+ (Node 24 recommended).
+The sidebar contains Dashboard, My Websites, Add Website, Create Campaign, Active Campaigns, Publishing History and Settings. The article library, team management and detailed reports remain available inside their relevant sections.
+
+## Scheduling rules
+
+The database enforces **at least 300 seconds between attempts**, including failures and retries. The first job is scheduled one interval after campaign confirmation. The last scheduled start for N publications is N × interval after confirmation.
+
+| Publications | Default scheduled duration |
+|---:|---:|
+| 10 | 50 minutes |
+| 50 | 4 hours 10 minutes |
+| 100 | 8 hours 20 minutes |
+| 200 | 16 hours 40 minutes |
+| 300 | 25 hours |
+| 500 | 41 hours 40 minutes |
+
+Times are earliest starts, not guaranteed completion deadlines. A global fenced worker processes one job at a time and waits at least the applicable interval after an attempt finishes. Per-campaign start guards, per-site minimums, provider rate limits, other campaigns and retries can extend the duration. Overdue jobs never catch up in a burst. Cron checks every 30 seconds; no browser timer or sleeping five-minute request is used.
+
+Pause prevents new claims; resume restores pending work; cancel removes unstarted attempts. An already dispatched request may finish. Failed jobs can be retried safely. Invalid authorization stops that connection and requests reconnection while other eligible targets can continue.
+
+## Supported connection methods
+
+| Platform | Required authorization and setup |
+|---|---|
+| WordPress | WordPress username and a dedicated Application Password; account must have `publish_posts`. The API is discovered on the website's origin. |
+| Ghost | Custom Integration **Admin API key**, with the actual Ghost admin domain when it differs from the public website. Content API keys cannot publish. |
+| Shopify Blogs | Installed app with content scopes, store domain and blog ID. Same-organization app client credentials are exchanged on the server; an existing authorized Admin access token is also supported. Other stores require merchant OAuth installation. |
+| Webflow CMS | Site token with CMS read/write, collection ID, content-field mapping and the actual public URL pattern. Additional required fields and SEO/image mappings are optional advanced settings. |
+| Blogger / Blogspot | Google OAuth using the Blogger publishing scope. Backend Google OAuth application credentials and callback registration must be configured first. Refresh tokens remain in Vault. |
+| Wix | Site-owner API key with Manage Blog, site ID and author member ID. Native paragraphs, headings, links, bold/italic and simple tables are converted to Ricos. Unsupported media or formatting requires manual publishing; content is never silently discarded. |
+| Drupal | Enabled JSON:API writes and HTTP Basic Authentication, a publishing account, content bundle and permitted text format. Required custom fields/relationships can be configured. |
+| Joomla | Joomla Web Services and API token plugins, authorized API token and an existing article category. Site workflows must permit publication. |
+| Custom website | Installed [GuestPost connector contract](docs/CUSTOM-CONNECTOR.md), bearer key and durable idempotency support. |
+| Manual | Save website details and export reviewed HTML for its normal editor. Manual connections are excluded from automatic allocation and success counts. |
+
+A normal website login password is not a universal API credential. GuestPost never bypasses CAPTCHA, MFA, consent or platform access restrictions. Where a platform cannot expose all permissions through a read-only test, the UI says that credentials were verified and publishing permission will be checked at dispatch. Every publication is counted only after its platform confirms the result.
+
+The connectors are implemented and protocol-tested. **Live publishing on two authorized CMS sites remains an external acceptance step because no publishing-site credentials have been supplied.** Do not interpret mocked provider responses or rollback-only database fixtures as actual publications.
+
+## Website and article management
+
+Search, filter by platform/status, paginate website lists, edit/reconnect, disable, disconnect and inspect history. Import up to 500 website-detail CSV rows; passwords/tokens are rejected from imports and existing connections are preserved on duplicate URLs.
+
+The visual/HTML editor, safe iframe preview, plain-text/HTML import, editorial approval, tags, metadata, optional canonical URL and featured images remain available. Campaign images are resized to a maximum dimension of 1600 and converted to WebP below 4 MB before tenant-scoped upload. Published assets are public. Canonical/SEO/image support varies by CMS and configured templates; preview reports relevant limitations.
+
+Allocation excludes disconnected, disabled, manual, incompatible and previously scheduled/published content targets. The same content fingerprint cannot be queued again for the same website by simply creating another article record. A shortage blocks campaign creation instead of reusing websites or inventing success counts. Website-specific variants require explicit editorial review; no automatic rewriting is performed.
+
+## Reliability and security
+
+The queue uses a singleton lock, a unique processing-row index, `FOR UPDATE SKIP LOCKED`, fencing tokens, a ten-minute recovery lease and immutable content/target snapshots. Browser access is tenant-scoped SELECT through RLS; authenticated Edge Functions authorize mutations against the live profile. Team roles are stored in protected database profiles, not editable JWT user metadata.
+
+CMS passwords, tokens and Google refresh credentials are encrypted in Supabase Vault. They are bound to the platform, endpoint and connection configuration, excluded from frontend records, CSV files, logs and source. OAuth state is single-use, short-lived, protected from browser roles and paired with PKCE. No service-role key is included in the frontend or Actions workflow.
+
+The HTTP transport validates public IPv4 DNS answers, pins TLS to a validated address while preserving certificate hostname verification, refuses redirects and limits response size/time. IPv6-only publishing endpoints are currently unsupported. Only public HTTPS domains on port 443 are accepted.
+
+Connectors create a draft, persist its remote ID, then publish that ID. An interrupted create is reconciled by a stable slug, handle, job UUID or idempotency key. An unresolved outcome requires review; it never causes a blind second create. Known IDs are reused on retries. Webflow publishes only the selected CMS item, never unrelated staged site changes.
+
+Realtime updates have a 15-second polling fallback. Active forms and open dialogs are preserved during live refreshes. Sessions stay in memory; a full page reload requires signing in again.
+
+## Local development and verification
+
+Requires Node.js 22.12+ (Node 24 recommended). Dependencies and lockfiles are pinned.
 
 ```sh
 npm ci --ignore-scripts
 cp .env.example .env.local
-# Set the NEW project's URL and public publishable key.
+# Fill the dedicated project's URL and PUBLIC publishable key.
 npm run dev
-```
-
-The local preview runs at `http://127.0.0.1:5173`. Only a public publishable key belongs in frontend configuration. Never add service-role keys, application passwords, scheduler tokens, or Supabase access tokens to source or browser storage.
-
-```sh
 npm test
 npm run check:edge
 npm run test:edge
 npm run build
-npm run preview
 ```
 
-`dist/` is the complete static GitHub Pages artifact. Routing uses fragments, so no server rewrite is needed. On Windows, use `npm.cmd` if PowerShell blocks npm's script shim. Build tools may require normal local filesystem access outside a restricted agent sandbox.
+On Windows use `npm.cmd` if needed. The Deno npm wrapper may need its normal install/bootstrap or a separately installed Deno 2.5.6; CI uses the official Deno setup action. Run `tests/database.sql` only against the dedicated project; its fixtures and state transitions roll back.
 
-## First administrator and team access
+The Pages workflow installs dependencies, runs frontend and Edge tests, builds relative static assets and deploys `dist/` to the existing GitHub Pages site. Backend deployments and migrations are deliberate separate operations. Use the tracked migration history as authoritative; never reapply an old schema snapshot to the live database.
 
-1. Confirm production email delivery and the configured Auth URLs using [DEPLOYMENT.md](DEPLOYMENT.md).
-2. Open the frontend and choose **Create a workspace**.
-3. Verify your email and sign in. A new, isolated tenant is created; its first user is its workspace owner (`super_admin`). This role is scoped to that workspace.
-4. Use **User management** to invite admins or editors. An invite creates membership in the inviting workspace. A normal public registration creates an independent workspace.
-5. Editors can write and revise articles. Only admins or explicitly permitted editors can approve content and create/control campaigns. Saving an edit resets its approval.
+## Operations requiring owner setup
 
-Sessions and refresh tokens stay in memory, so reloading the page requires signing in again. Recovery and invitation links establish an in-memory session for setting a password. Disabling a profile immediately blocks RLS and API access even while its old JWT has not expired. The workspace owner cannot be demoted or disabled from the dashboard.
-
-## Connect a WordPress website
-
-1. Use HTTPS and an account with `publish_posts` permission. Featured images also require media-upload permission.
-2. In WordPress, open **Users → Profile → Application Passwords** and create a dedicated application password.
-3. Save the site's details in **Add new website**. The default endpoint is `https://domain/wp-json/wp/v2`; subdirectory installations can use their matching endpoint. The website and API must share an origin.
-4. Run **Test connection**. This checks `/users/me?context=edit` and publishing capability. Only connected, active websites appear in campaign selection.
-5. Create the requested category and tags in WordPress before publishing. The connector resolves existing names and never silently invents taxonomy.
-
-For meta titles, descriptions, and focus keywords, install the included `wordpress/guestpost-metadata.php` plugin on the authorized target website. The connector detects its registered REST metadata. Without it, article content, title, excerpt, taxonomy and featured image still publish; plugin-specific SEO fields are not automatically mapped. Avoid duplicate description tags if another SEO plugin already controls them.
-
-Credential rotation is supported by editing a connection. Secrets are bound to the canonical API endpoint; a mismatched endpoint/secret pair is rejected. Revoking stored credentials disables the connection and deletes the Vault secret. Also revoke the application password in WordPress to invalidate it at the source. Websites with publication history are disabled rather than deleted, preserving audit records.
-
-## Editorial and publishing workflow
-
-Write in the visual editor or import `.txt`/`.html`, review the sanitized HTML preview, attach an image, and save a draft. An authorized reviewer approves it. Choose an approved article, filter/select websites, optionally supply website-specific versions, and review the complete campaign before starting.
-
-Campaigns preserve an immutable approved article snapshot, including variants. Later edits cannot silently alter queued content. Images uploaded through the dashboard are public publication assets, tenant-scoped for upload and limited to PNG/JPEG/WebP under 5 MB.
-
-The default interval is 90 seconds. For 100+ websites the database enforces:
-
-```text
-effective interval = max(requested interval, ceil(7200 / (website count - 1)))
-job time = campaign start + ordinal × effective interval
-```
-
-100 targets at 90 seconds span **2h 28m 30s** before request duration and Cron latency. A global single-worker gate adds at least the applicable interval after an attempt completes. Other campaigns, website limits, failures and pauses may extend the duration. Overdue jobs never catch up in a burst. Cron checks every 30 seconds; scheduled times are earliest starts, not exact deadlines.
-
-Pausing stops new claims. Cancellation affects unstarted jobs. An already dispatched request may finish. Known transient failures use exponential backoff with `Retry-After`; failed jobs can be manually retried. Rate limits also delay the global gate. Completion and error logs, remote URLs, attempts and campaign progress remain persistent after logout/browser closure.
-
-## Duplicate protection and recovery
-
-The queue uses a database singleton lock, a partial unique index allowing one processing row, fencing tokens, and a 10-minute recovery lease. The lease exceeds the hosted worker maximum lifetime; connector work is separately bounded. The same article cannot be queued again for a website while a prior job is active, published, or has a potentially successful remote attempt, even after campaign cancellation.
-
-WordPress core does not provide a transactional cross-system idempotency key. The connector creates a draft using a deterministic per-job slug, durably stores its remote ID, then publishes that ID. Retrying a known ID updates the same post. A create request with an unknown outcome is stopped for reconciliation; it is never blindly repeated. A manual retry searches for the exact slug, including draft/private states. If nothing can be reconciled, inspect the remote posts and trash before deciding how to resolve the failed job. No automatic deletion or fresh create bypass is offered for uncertain outcomes.
-
-## Architecture and security
-
-```text
-Static HTML/CSS/JS → Supabase Auth + RLS reads
-                  → api Edge Function → validated, authorized mutations
-Supabase Cron → scheduler secret in Vault → publish-worker
-              → atomic claim RPC → WordPress REST → fenced completion RPC
-```
-
-Domain tables: `tenants`, `profiles`, `tenant_invites`, `settings`, `websites`, `articles`, `campaigns`, `publishing_jobs`, `publishing_logs`. Composite tenant foreign keys block cross-workspace references. Browsers have SELECT-only RLS access to their tenant and tenant-scoped image upload access. All domain writes pass authenticated Edge validation. Privileged RPCs are executable only by `service_role`; the key is supplied only by the Edge runtime.
-
-Private tables hold credential references and worker/config state. Publishing credentials and the scheduler secret are encrypted by Supabase Vault. They never enter frontend query results. Role decisions use protected database profiles, not editable user metadata. Server-side HTML allowlisting, browser sanitization and sandboxed previews protect content rendering. CSV exports neutralize spreadsheet formulas.
-
-The connector accepts public HTTPS domains on port 443, rejects IP literals/internal names, resolves only public IPv4 addresses, and pins TLS connections to a validated address while retaining hostname verification/SNI. Redirects are refused. This avoids the DNS-rebinding gap of checking DNS and then using an unrelated resolver. IPv6-only sites are currently unsupported. Requests and response sizes are bounded; raw remote error bodies and credentials are excluded from logs.
-
-Both Edge Functions use `verify_jwt=false` at the gateway **because they implement authentication themselves**: `api` verifies the user's token with Auth and checks the live profile; `publish-worker` accepts only the private Cron token verified server-side. A publishable API key alone does not authorize either function.
-
-## Operations
-
-- Monitor failed jobs, `publishing_logs`, Edge logs and Cron execution history. Reconcile unknown outcomes before retrying.
-- Keep WordPress application passwords narrow and rotate them regularly. Review team access and publishing grants.
-- Configure custom SMTP, Auth rate limits and appropriate project capacity before opening registration to a wider audience.
-- Use a suitable Supabase plan for production availability; a paused project cannot process Cron jobs. Configure backups and retention for your operational needs.
-- Deploy backend changes deliberately after reviewing migrations. The frontend workflow never receives backend secrets and does not automatically alter the database.
-- New integrations implement a connector interface next to `_shared/wordpress.ts`. Unsupported CMS types cannot be selected as if they were functioning integrations.
-
-Only the dedicated Supabase project and the owner-designated `guestpostsaas` repository are used. Other repositories and Supabase projects were not changed.
-
-## Reference documentation
-
-- [Supabase Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
-- [Scheduling Edge Functions](https://supabase.com/docs/guides/functions/schedule-functions)
-- [Supabase Vault](https://supabase.com/docs/guides/database/vault)
-- [WordPress posts API](https://developer.wordpress.org/rest-api/reference/posts/)
-- [WordPress application-password authentication](https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/)
+Connect authorized CMS accounts, configure Google OAuth if using Blogger, and configure production SMTP for reliable email onboarding. Configure backups and availability appropriate to the Supabase plan. The current Free plan does not include leaked-password protection, which Supabase documents as Pro or above. No paid resource, unrelated repository or unrelated Supabase project is changed by this upgrade.

@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {effectiveInterval,duration,csv} from '../src/domain.js';
-test('100 targets default to a 2h 28m 30s minimum span',()=>{assert.equal(effectiveInterval(100,90),90);assert.equal(duration(99*90),'2h 28m 30s');});
-test('every campaign with 100+ targets spans at least two hours',()=>{for(let n=100;n<=1000;n++){const gap=effectiveInterval(n,30);assert.ok(gap*(n-1)>=7200);}});
-test('small campaigns and slower configured schedules are preserved',()=>{assert.equal(effectiveInterval(99,30),30);assert.equal(effectiveInterval(100,180),180);assert.equal(effectiveInterval(1,90),90);});
-test('invalid counts and intervals are rejected',()=>{for(const [n,gap]of[[0,90],[1001,90],[1,29],[1,86401],[1,90.5]])assert.throws(()=>effectiveInterval(n,gap));});
+import {effectiveInterval,campaignEstimate,duration,csv,parseCSV} from '../src/domain.js';
+test('every quantity includes an initial five-minute wait',()=>{for(let n=1;n<=500;n++){assert.equal(effectiveInterval(n),300);assert.equal(campaignEstimate(n,300,0).first.getTime(),300000);assert.equal(campaignEstimate(n,300,0).last.getTime(),n*300000);}});
+test('duration estimates match all requested examples',()=>{for(const [n,minutes]of [[10,50],[50,250],[100,500],[200,1000],[300,1500],[500,2500]])assert.equal(campaignEstimate(n).seconds,minutes*60);assert.equal(duration(500*300),'41h 40m');});
+test('slower schedules are preserved',()=>{assert.equal(effectiveInterval(50,900),900);assert.equal(campaignEstimate(1,900,0).last.getTime(),900000);});
+test('invalid quantities and intervals are rejected',()=>{for(const [n,gap]of[[0,300],[501,300],[1,299],[1,86401],[1,300.5]])assert.throws(()=>effectiveInterval(n,gap));});
+test('CSV import parses quoted values, BOM and multiline cells',()=>{assert.deepEqual(parseCSV('\uFEFFwebsite_url,website_name\r\n"https://site.com","Journal, one"\r\n"https://other.com","Two\nlines"'),[{website_url:'https://site.com',website_name:'Journal, one'},{website_url:'https://other.com',website_name:'Two\nlines'}]);});
+test('CSV rejects malformed data and credential columns',()=>{for(const s of ['name\nsite','website_url,password\nhttps://site.com,secret','website_url\n"missing end','website_url,name\nhttps://site.com'])assert.throws(()=>parseCSV(s));assert.throws(()=>parseCSV('website_url\n'+'https://site.com\n'.repeat(501)));});
 test('CSV neutralizes formulas and escapes quoted multiline content',()=>{const output=csv([{title:'=HYPERLINK("bad")',error:'two\nlines, "quoted"'}]);assert.ok(output.includes('"\'=HYPERLINK(""bad"")"'));assert.ok(output.includes('"two\nlines, ""quoted"""'));});

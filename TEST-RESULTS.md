@@ -1,61 +1,47 @@
-# Verification — 17 October 2026
+# Verification — Version 2, 18 October 2026
 
-Scope: only the new Supabase project `aiolueflrpraiaqvdscp`, this workspace, and the owner-designated `zeshanayub044-sudo/guestpostsaas` repository. Other repositories and the prior Supabase project were not modified.
+Scope: only the dedicated Supabase project aiolueflrpraiaqvdscp and zeshanayub044-sudo/guestpostsaas. Existing administrator account preserved; browser checks use a separate disposable QA tenant.
 
-## Passed automated checks
+## Automated checks
 
-| Suite | Result | Evidence |
-|---|---:|---|
-| Local domain tests | 5 / 5 | `npm test` — scheduling math, interval validation, CSV escaping/formula protection |
-| Edge/security/transport tests | 8 / 8 | `npm run test:edge` — sanitization, URL/IP restrictions, approval protection, DNS pinning, chunk framing, redirect refusal, uncertain truncated responses |
-| Edge type checks | Passed | `npm run check:edge` — both entrypoints with the final Deno transport |
-| Live database suite | 23 / 23 | `tests/database.sql` executed on the new project; all fixtures rolled back |
-| Live Auth/API suite | 20 / 20 | `tests/live-auth.mjs` against deployed API v3 and worker v2; disposable accounts removed |
-| Production frontend build | Passed | Vite 6.4.4; JS 274.92 kB (77.73 kB gzip), CSS 33.17 kB (8.24 kB gzip) |
-| npm dependency audit | 0 vulnerabilities | Patched DOMPurify 3.4.17, Vite 6.4.4, Supabase CLI 2.121.0 |
-| Supabase security advisor | No findings | Final security advisor returned an empty lint list |
+| Suite | Verified result |
+|---|---|
+| Frontend domain / CSV | 7 passed: quantities 1–500, initial five-minute wait, all duration examples, minimum interval, import parsing and credential-column rejection, formula-safe exports |
+| Edge / transport / connectors | 18 passed: HTML sanitization, public HTTPS/IP restrictions, DNS-pinned TLS, HTTP framing and uncertainty, Ghost draft checkpoint/reconciliation/JWT, Shopify logical errors, Webflow single-item/live checks, Drupal stable UUID, custom idempotency, connection binding and native Wix formatting |
+| Live transactional database suite | 30 passed; all fixtures rolled back: 100 and 500 distinct jobs, 8h20m / 41h40m schedules, first-job wait, five-minute floor, upper quantity bound, allocation exclusions, locking, pause/resume/cancel, retries/Retry-After, expired-lease reconciliation, tenant RLS, protected credentials/OAuth state and invoker views |
+| Live authenticated HTTP API | 22 passed against API v6 / worker v4: real login/profile, public WordPress HTTPS read, manual metadata, sanitization/approval, real shortage, ineligible-target rejection, browser privilege denials, revocation/deletion and logout |
+| Backend type check | All three entrypoints passed |
+| Production build | Passed after browser fixes; JS 299.37 kB (87.31 kB gzip), CSS 39.32 kB (9.51 kB gzip) |
 
-The 23 database checks cover 100 persistent jobs, the minimum two-hour span, duplicate rejection, editor restrictions, pause/resume/cancel, claimed-job exclusion, actual-completion pacing, retry backoff/Retry-After, expired-lease reconciliation, a configured one-hour recovery cooldown, manual retries, service-role Vault read/revocation, tenant isolation, denied browser RPC/role writes, and duplicate protection after cancellation of an unknown outcome.
+The connector tests use controlled protocol responses. The database suite simulates elapsed time and successful completion inside a rollback-only transaction. Neither is evidence of an actual external CMS publication or a 41-hour live campaign.
 
-Database completion/URL tracking was tested using rollback-only state transitions. This is not evidence of an actual WordPress publication.
+## Live browser and backend checks
 
-The 20 live HTTP checks cover unauthenticated API/worker denial, CORS, real Supabase password login/user lookup, tenant profile reads, a successful read from the public WordPress.com API using the deployed DNS-pinned TLS transport, unsafe URL rejection, website/Vault creation, article persistence and sanitization, editorial approval, rejection of unvalidated targets, browser privilege denial, credential revocation, unused website/article deletion, and logout.
+- Real Supabase login using confirmed disposable QA accounts; no administrator credentials were used for tests.
+- Seven essential navigation items, real database metrics and zero fabricated publication counts.
+- Server-generated preview of 100 publications: 0 eligible targets, shortage 100, 8h20m estimate, safe formatted article preview and disabled Start. No jobs created.
+- Website discovery of the owner-controlled Pages site correctly falls back to manual publishing, without submitting any CMS credential.
+- CSV preview parsed two owner-controlled website URLs; import added one new row and skipped the existing connection without overwriting it.
+- Formatted article saved to the real database through the HTML editor and explicitly approved; the original article library remains functional.
+- Desktop checked at 1440 × 1000 and mobile at 390 × 844. Mobile document width was 375 px within the 390 px viewport; the navigation drawer opened.
+- Maximum quantity preset displayed 500 and the expected 41h40m estimate. No console errors after the browser fix.
+- QA screenshots are kept locally and excluded from the public source upload.
 
-The optional HTTP harness needs `bcryptjs@3.0.3` for disposable credential hashing (`npm install --no-save --package-lock=false bcryptjs@3.0.3 --ignore-scripts`). It never prints its generated password or access token. It must only be run against the dedicated test/deployment project with an explicitly provisioned disposable fixture.
+## Backend deployment
 
-## Browser checks
+- Migration universal_publishing_v2 applied as version 20261017212753. Its local filename matches remote history.
+- API version 6, publishing-worker version 4 and Google OAuth callback version 1 are active. Function bodies authenticate users, the private Cron token or one-use OAuth state respectively; gateway JWT verification is intentionally disabled.
+- Cron guestpost-publish-worker remains active every 30 seconds.
+- The new OAuth state table has RLS and no browser grants/policies, intentionally denying browser access. Its no-policy advisor notice is informational.
+- Security advisor warns that leaked-password protection is disabled. Supabase makes this feature available on Pro and above; the project is on Free, and no paid upgrade was purchased. See https://supabase.com/docs/guides/auth/password-security.
+- Unused-index informational notices are expected on an empty workload; no missing foreign-key indexes were reported.
 
-- Actual login to the live backend with a disposable account.
-- Real database counts and empty states on the dashboard.
-- Article creation through the visual/HTML editor, persistence in the library, formatted sandboxed preview, and editorial approval.
-- Approved content appears in campaign selection; websites remain ineligible until validated.
-- Responsive dashboard checked at 1440 × 1000 and 390 × 844. Mobile document width stayed within the viewport; the navigation drawer opened correctly.
-- All icon placeholders converted to SVG.
-- Desktop and mobile QA screenshots remain local; they use a temporary disposable workspace and are not needed to build or deploy the application.
+## External acceptance still required
 
-## Backend deployment and Cron
+1. Authorized WordPress and second-CMS test website credentials. No such credentials were supplied, so no real external article was published.
+2. Real closed-browser publication and an observed full-length campaign. Independent Cron invocation and database spacing are verified, but a short test is not a multi-hour publication run.
+3. Google OAuth client/consent/callback setup for Blogger; provider app scopes, site templates, content fields, workflows and media permissions for other CMS integrations.
+4. Production email delivery and administrator confirmation/recovery/invitation delivery; SMTP credentials were not supplied.
+5. Owner-selected backup, availability and password-protection options for the Supabase plan. No paid resource was provisioned.
 
-- `api` deployed and active, version 4 (invitation redirect updated for `/guestpostsaas/`; prior live HTTP suite ran against version 3).
-- `publish-worker` deployed and active, version 2.
-- `guestpost-publish-worker` Cron job is active on a **30-second** schedule.
-- Three observed Cron runs returned `succeeded`.
-- Their worker HTTP responses were **200**, `{"processed":0}`, with no timeout/error. This verifies private scheduler authentication and independent backend invocation while the queue is empty.
-- Test cleanup verified **0 users, 0 tenants, 0 articles, 0 publishing jobs**. Only the internal encrypted scheduler token remains after Cron setup. No production/admin password was created or left in source.
-- The performance advisor's missing tenant-invite foreign-key index was added. Unused-index informational notices on the empty database do not establish a need to remove the indexes supporting ownership and queue queries.
-
-## GitHub Pages deployment
-
-- Uploaded all 41 application, backend, migration, test and workflow source files to `zeshanayub044-sudo/guestpostsaas`; ignored local configuration, build outputs and optional QA screenshots were excluded.
-- Pages source saved as **GitHub Actions**.
-- [Deployment run 39039483081](https://github.com/zeshanayub044-sudo/guestpostsaas/actions/runs/39039483081) completed successfully for application commit `229ededfa46a30f3d3497507fc6d16c7ac628874`: clean install, tests, build, artifact upload and deployment all passed.
-- Opened [the live site](https://zeshanayub044-sudo.github.io/guestpostsaas/) in a browser; the GuestPost sign-in screen rendered correctly, with no console errors.
-- Saved and verified the production Supabase Site URL plus exact production and local redirect URLs. Email delivery and real WordPress publication remain unverified.
-
-## Not yet verified / remaining setup
-
-1. Real email confirmation/registration, password-reset delivery and team invitation delivery after configuring production SMTP. The QA login used a provisioned, confirmed disposable account.
-2. An authorized WordPress staging site: publishing permission validation, draft creation, publish-by-ID, featured image upload, category/tag matching, and optional SEO metadata plugin. No site credentials were supplied, so no real post was published.
-3. A real closed-browser publication and a full-length 100-website live campaign. The backend scheduling architecture and database rules are verified, but those live acceptance tests require connected authorized targets.
-4. The included WordPress metadata plugin needs installation and validation on the authorized target; no third-party WordPress site was changed.
-
-Earlier failures were corrected before the passing results above: browser-target top-level-await compatibility, icon naming, unsupported Node custom DNS lookup in the Edge runtime, and TLS socket typing. Automatic review initially rejected broad Vault grants; they were removed because Supabase already provided the required service-role permissions. The final narrowed migration and validated deployments succeeded. No approval block remains.
+See DEPLOYMENT.md for operational setup and provider limitations.

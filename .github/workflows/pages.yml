@@ -21,6 +21,13 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.5.6
+      - name: Check and test publishing connectors
+        run: |
+          deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts
+          deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts
       - run: npm run build
         env:
           VITE_SUPABASE_URL: https://aiolueflrpraiaqvdscp.supabase.co

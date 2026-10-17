@@ -1,3 +1,4 @@
+-- Historical Version 1 hardening reference. Do not reapply to the Version 2 deployment; use tracked migrations.
 create or replace function public.create_campaign(p_actor uuid,p_article uuid,p_name text,p_sites uuid[],p_interval integer,p_start timestamptz,p_overrides jsonb default '{}')
 returns uuid language plpgsql set search_path='' as $$
 declare actor public.profiles; article public.articles; n integer; v_interval integer; c uuid; w uuid; idx integer:=0; jid uuid;

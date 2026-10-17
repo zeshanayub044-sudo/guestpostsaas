@@ -5,3 +5,5 @@ verify_jwt = false
 
 [functions.publish-worker]
 verify_jwt = false
+[functions.oauth-callback]
+verify_jwt = false

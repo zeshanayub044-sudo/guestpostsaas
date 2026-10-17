@@ -1,3 +1,4 @@
+import {upgradeActions,upgradeAction} from '../_shared/upgrade-api.ts';
 import {db,rpc,articleData,canonicalURL,text,integer,uuid} from '../_shared/core.ts';
 import {WordPress} from '../_shared/wordpress.ts';
 import {RemoteError,request} from '../_shared/network.ts';
@@ -12,6 +13,7 @@ async function execute(req:Request){
   if(!actor)return {status:403,body:{error:'Your workspace access is disabled.'}};
   const raw=await req.text();if(raw.length>700000)throw new Error('Request exceeds the size limit.');
   const {action,data:b={}}=JSON.parse(raw);
+  if(upgradeActions.has(action))return {status:200,body:await upgradeAction(actor,action,b)};
   const admin=actor.role==='super_admin'||actor.role==='admin';
   const publisher=admin||actor.can_publish;
   const requireAdmin=()=>{if(!admin)throw new Error('Administrator permission required.');};
@@ -104,7 +106,7 @@ async function execute(req:Request){
       requirePublisher();await rpc('retry_job',{p_actor:actor.id,p_job:uuid(b.id)});break;
     }
     case 'settings.save':{
-      requireAdmin();const payload={workspace_name:text(b.workspace_name,100,true),default_interval:integer(b.default_interval,30,86400),max_attempts:integer(b.max_attempts,1,10)};
+      requireAdmin();const payload={workspace_name:text(b.workspace_name,100,true),default_interval:integer(b.default_interval,300,86400),max_attempts:integer(b.max_attempts,1,10)};
       const{error}=await service.from('settings').update(payload).eq('tenant_id',actor.tenant_id);if(error)throw error;await audit('settings_updated','Workspace publishing settings updated.');break;
     }
     case 'user.invite':{

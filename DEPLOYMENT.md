@@ -1,56 +1,50 @@
-# Deployment and handoff
+# Deployment and operations — GuestPost Universal V2
 
-## Existing isolated backend
+## Dedicated resources
 
-Project: **guest posts saas**  
-Reference: `aiolueflrpraiaqvdscp`  
-URL: `https://aiolueflrpraiaqvdscp.supabase.co`  
-Region: `ap-south-1`
+- Repository: https://github.com/zeshanayub044-sudo/guestpostsaas
+- Frontend: https://zeshanayub044-sudo.github.io/guestpostsaas/
+- Supabase project: guest posts saas, aiolueflrpraiaqvdscp, ap-south-1.
+- Dashboard: https://supabase.com/dashboard/project/aiolueflrpraiaqvdscp
 
-Use its [Supabase dashboard](https://supabase.com/dashboard/project/aiolueflrpraiaqvdscp). Do not apply these files to any previous project. `supabase/config.toml` contains local CLI configuration; always explicitly target the above reference for remote operations.
+The original repository and isolated database are reused. Never target unrelated projects or repositories. The frontend workflow receives only the public publishable key. No service-role, CMS, Google client-secret or scheduler credential belongs in GitHub or the browser bundle.
 
-The frontend workflow contains the public publishable key. It is designed to be public; RLS and authenticated Edge validation enforce access. No privileged key is needed in GitHub Actions for frontend deployment.
+## Frontend deployment
 
-## GitHub Pages
+Pages is configured with GitHub Actions as its source. Push to main triggers the existing Pages workflow. It performs a clean install, Node tests, pinned Deno setup, Edge type checks and tests, Vite build, Pages artifact upload and deployment. Relative assets support this repository path. Verify the final Actions run and live URL after every deployment.
 
-Repository: [zeshanayub044-sudo/guestpostsaas](https://github.com/zeshanayub044-sudo/guestpostsaas).
-Frontend URL: [GuestPost](https://zeshanayub044-sudo.github.io/guestpostsaas/).
+## Backend deployment
 
-The owner created this new repository and designated it for the application. Pages uses **GitHub Actions** as its source. Pushes to `main` run **Deploy GuestPost to GitHub Pages**; the workflow can also be started manually from Actions. Check the latest successful run before assuming a new commit is live.
+Tracked migrations are authoritative. universal_publishing_v2 is applied as 20261017212753. supabase/schema.sql includes the initial schema plus Version 2 changes as a reference; do not reapply it to this provisioned project. supabase/hardening.sql is a historical Version 1 reference and must not replace the current queue functions.
 
-The initial [Actions run](https://github.com/zeshanayub044-sudo/guestpostsaas/actions/runs/39039483081) completed successfully for commit `229ededfa46a30f3d3497507fc6d16c7ac628874`. The live frontend was opened in a browser and rendered the GuestPost sign-in page without console errors.
+Deploy api, publish-worker and oauth-callback with their shared modules, catalog.json, deno.json import map and pinned lockfile. api verifies the real Auth user and current profile; publish-worker verifies the private scheduler token; oauth-callback consumes one-use PKCE state. Their gateway verify_jwt=false setting is intentional. The worker secret stays in Vault and is never exported.
 
-The workflow runs `npm ci --ignore-scripts`, local tests, the static build, and the official Pages artifact/deployment actions. GitHub Pages serves only `dist/`; credentials and background processing remain in Supabase.
+Cron checks the queue every 30 seconds. The database enforces an initial interval before the first attempt, intervals of at least 300 seconds, one global worker and conservative spacing after completed or interrupted attempts. Do not replace this with browser timers or long sleeping requests.
 
-## Auth URLs configured; production email setup remains
+## Auth and email
 
-The following values were saved and verified in **Authentication → URL Configuration** for this new project:
+The production Site URL and exact redirect URL are configured as https://zeshanayub044-sudo.github.io/guestpostsaas/. The local redirect http://127.0.0.1:5173/ is also configured. Sessions stay in memory. Keep email confirmation enabled. Configure production SMTP in Authentication → Emails before broad onboarding; default email delivery has recipient/rate restrictions. The existing administrator was created separately and is retained. Never store its password in source or deployment notes.
 
-- Site URL: `https://zeshanayub044-sudo.github.io/guestpostsaas/`
-- Allowed redirect URLs: that exact production URL and `http://127.0.0.1:5173/`. Add further preview URLs only when required.
-- Configure custom SMTP for production email confirmation, password recovery and team invitations. Supabase's default email service has recipient/rate restrictions.
-- Keep email confirmation enabled. Disable anonymous sign-in unless intentionally implementing its separate authorization model.
+## Blogger OAuth owner setup
 
-The Auth URLs were configured through the dashboard. Custom SMTP credentials have not been supplied, so production email delivery remains an owner setup task. No previous project’s Auth system was modified.
+Create an authorized Google OAuth web application with Blogger API enabled and the Blogger publishing scope. Configure its consent screen and permitted test users or production verification as applicable. Register this exact redirect URI:
 
-## Backend deployment from a clean checkout
+https://aiolueflrpraiaqvdscp.supabase.co/functions/v1/oauth-callback
 
-The current backend was provisioned through the authorized Supabase connector. The tracked migration files contain the exact applied SQL and match the remote migration versions. Their local files were created with the CLI and aligned to the recorded deployment history. `supabase/schema.sql` is a final-state reference snapshot. Check remote history before applying anything; do not reapply the snapshot to the provisioned database.
+Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET as Supabase Edge Function secrets in this project. Do not enter them into public advanced connection JSON. The Connect Google action creates a short-lived PKCE request; the callback verifies access to the connected blog and stores its refresh credential only in Vault. Until these owner credentials exist, the UI reports that Google authorization setup is required. No fake Google connection is supplied.
 
-For a future separate NEW project:
+## Provider-specific prerequisites
 
-1. Create that new isolated project explicitly.
-2. Update the project reference/URL, public key, API CORS origin, invite redirect URL, Settings display and scheduler URL for that deployment.
-3. Review/apply the initial schema, image storage, queue hardening and tenant-invite index migrations.
-4. Deploy `api` and `publish-worker` with their shared files and `deno.json` import map. Both authenticate in their bodies.
-5. Apply `supabase/scheduler.sql` only after the worker is deployed. It generates an internal random Vault secret entirely in Postgres and schedules `private.tick()` every 30 seconds. Do not copy the secret into source or frontend config.
-6. Configure Auth URLs/SMTP, run the rollback-only database suite, and complete an authorized WordPress staging test.
+Read the connector matrix in README.md. WordPress needs an application password and publish_posts; Ghost needs an Admin integration key; Shopify needs an installed app and blog; Webflow needs collection/field/public URL mappings; Wix needs the owner key/site/member and supports a limited set of native rich-content blocks; Drupal needs writable JSON:API, an allowed bundle/format and its publishing workflow; Joomla needs Web Services token/category/ACL; custom sites implement docs/CUSTOM-CONNECTOR.md.
 
-## Final acceptance still needed
+Read-only credential tests cannot universally prove every CMS create/publish permission. The UI distinguishes this from verified capability checks, and dispatch validates responses before recording a publication. Canonical settings, SEO fields, featured images and custom/headless storefront URLs depend on provider configuration. Incompatible targets are excluded from automatic allocation or rejected explicitly during manual review.
 
-- Successful GitHub repository upload, Pages configuration, Actions run and live URL verification.
-- Real administrator email confirmation, password recovery and invitation delivery after Auth configuration.
-- An authorized WordPress staging site's credentials entered through the dashboard, connection validation and a real publication, including featured images/taxonomy/optional SEO plugin.
-- A closed-browser publication and an observed full-length 100-site campaign. Database pacing rules are tested independently; a short test is not evidence of a two-hour live campaign.
+## Monitoring, recovery and backups
 
-These are explicit remaining checks, not simulated successes.
+Review Publishing History, failed jobs, authorization-required connections, audit logs, Edge logs and Cron run history. Reconcile unknown remote outcomes before a manual retry. A draft ID or deterministic key is reused; a blind second create is never offered. Credential rotation must retain the destination binding; connections with history cannot be silently changed to another endpoint.
+
+The OAuth state table is private and denies browser access by default. The security advisor may report this intentional no-policy state as informational. Leaked-password protection requires Pro or above according to the official password-security guide; the current Free project was not upgraded. Configure backups, retention and project availability using owner-approved plan options. A paused project cannot process scheduled jobs.
+
+## Acceptance limits
+
+The software and database protocol checks do not prove an external publication. Complete an authorized WordPress test plus a second CMS, email onboarding, a closed-browser publication and a sustained campaign before treating those acceptance criteria as verified. No third-party publishing credentials, Google developer credentials, SMTP credentials or paid backup approval were supplied during this upgrade.

@@ -26,7 +26,7 @@ export function canonicalURL(value: unknown): URL {
   return u;
 }
 export function articleData(raw: Record<string,unknown>) {
-  return {title:text(raw.title,300,true),content:cleanHTML(text(raw.content,500000,true)),meta_title:text(raw.meta_title,200),meta_description:text(raw.meta_description,500),slug:text(raw.slug,120).toLowerCase().replace(/[^a-z0-9-]/g,'-'),focus_keyword:text(raw.focus_keyword,200),featured_image:raw.featured_image?canonicalURL(raw.featured_image).href:null,category:text(raw.category,100),tags:(Array.isArray(raw.tags)?raw.tags:String(raw.tags??'').split(',')).filter(Boolean).slice(0,30).map(t=>text(t,80)),status:['draft','review'].includes(String(raw.status))?String(raw.status):'draft'};
+  return {title:text(raw.title,300,true),content:cleanHTML(text(raw.content,500000,true)),meta_title:text(raw.meta_title,200),meta_description:text(raw.meta_description,500),slug:text(raw.slug,120).toLowerCase().replace(/[^a-z0-9-]/g,'-'),focus_keyword:text(raw.focus_keyword,200),featured_image:raw.featured_image?canonicalURL(raw.featured_image).href:null,canonical_url:raw.canonical_url?canonicalURL(raw.canonical_url).href:null,category:text(raw.category,100),tags:(Array.isArray(raw.tags)?raw.tags:String(raw.tags??'').split(',')).filter(Boolean).slice(0,30).map(t=>text(t,80)),status:['draft','review'].includes(String(raw.status))?String(raw.status):'draft'};
 }
 export async function rpc(name: string, args: Record<string,unknown>={}) {
   const {data,error}=await db().rpc(name,args);if(error)throw new Error(error.message);return data;
