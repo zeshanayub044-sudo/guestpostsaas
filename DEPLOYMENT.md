@@ -18,18 +18,20 @@ Frontend URL: [GuestPost](https://zeshanayub044-sudo.github.io/guestpostsaas/).
 
 The owner created this new repository and designated it for the application. Pages uses **GitHub Actions** as its source. Pushes to `main` run **Deploy GuestPost to GitHub Pages**; the workflow can also be started manually from Actions. Check the latest successful run before assuming a new commit is live.
 
+The initial [Actions run](https://github.com/zeshanayub044-sudo/guestpostsaas/actions/runs/39039483081) completed successfully for commit `229ededfa46a30f3d3497507fc6d16c7ac628874`. The live frontend was opened in a browser and rendered the GuestPost sign-in page without console errors.
+
 The workflow runs `npm ci --ignore-scripts`, local tests, the static build, and the official Pages artifact/deployment actions. GitHub Pages serves only `dist/`; credentials and background processing remain in Supabase.
 
-## Auth configuration required before real onboarding
+## Auth URLs configured; production email setup remains
 
-Open **Authentication → URL Configuration** in this new project.
+The following values were saved and verified in **Authentication → URL Configuration** for this new project:
 
 - Site URL: `https://zeshanayub044-sudo.github.io/guestpostsaas/`
-- Allowed redirect URLs: that exact URL, `http://127.0.0.1:5173/`, and any explicitly used development preview URL.
+- Allowed redirect URLs: that exact production URL and `http://127.0.0.1:5173/`. Add further preview URLs only when required.
 - Configure custom SMTP for production email confirmation, password recovery and team invitations. Supabase's default email service has recipient/rate restrictions.
 - Keep email confirmation enabled. Disable anonymous sign-in unless intentionally implementing its separate authorization model.
 
-The available connector cannot update Auth URL/email settings. These settings must be completed in the dashboard. No existing Auth system was modified.
+The Auth URLs were configured through the dashboard. Custom SMTP credentials have not been supplied, so production email delivery remains an owner setup task. No previous project’s Auth system was modified.
 
 ## Backend deployment from a clean checkout
 

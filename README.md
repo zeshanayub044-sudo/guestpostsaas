@@ -36,7 +36,7 @@ npm run preview
 
 ## First administrator and team access
 
-1. Configure Auth URLs and email delivery using [DEPLOYMENT.md](DEPLOYMENT.md).
+1. Confirm production email delivery and the configured Auth URLs using [DEPLOYMENT.md](DEPLOYMENT.md).
 2. Open the frontend and choose **Create a workspace**.
 3. Verify your email and sign in. A new, isolated tenant is created; its first user is its workspace owner (`super_admin`). This role is scoped to that workspace.
 4. Use **User management** to invite admins or editors. An invite creates membership in the inviting workspace. A normal public registration creates an independent workspace.

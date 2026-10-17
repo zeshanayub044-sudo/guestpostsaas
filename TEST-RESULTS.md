@@ -43,12 +43,19 @@ The optional HTTP harness needs `bcryptjs@3.0.3` for disposable credential hashi
 - Test cleanup verified **0 users, 0 tenants, 0 articles, 0 publishing jobs**. Only the internal encrypted scheduler token remains after Cron setup. No production/admin password was created or left in source.
 - The performance advisor's missing tenant-invite foreign-key index was added. Unused-index informational notices on the empty database do not establish a need to remove the indexes supporting ownership and queue queries.
 
+## GitHub Pages deployment
+
+- Uploaded all 41 application, backend, migration, test and workflow source files to `zeshanayub044-sudo/guestpostsaas`; ignored local configuration, build outputs and optional QA screenshots were excluded.
+- Pages source saved as **GitHub Actions**.
+- [Deployment run 39039483081](https://github.com/zeshanayub044-sudo/guestpostsaas/actions/runs/39039483081) completed successfully for application commit `229ededfa46a30f3d3497507fc6d16c7ac628874`: clean install, tests, build, artifact upload and deployment all passed.
+- Opened [the live site](https://zeshanayub044-sudo.github.io/guestpostsaas/) in a browser; the GuestPost sign-in screen rendered correctly, with no console errors.
+- Saved and verified the production Supabase Site URL plus exact production and local redirect URLs. Email delivery and real WordPress publication remain unverified.
+
 ## Not yet verified / remaining setup
 
-1. GitHub Actions deployment and live frontend URL verification after source upload. The owner created `guestpostsaas`, and Pages is configured to use Actions.
-2. Real email confirmation/registration, password-reset delivery and team invitation delivery after setting Auth URLs and SMTP. The QA login used a provisioned, confirmed disposable account.
-3. An authorized WordPress staging site: publishing permission validation, draft creation, publish-by-ID, featured image upload, category/tag matching, and optional SEO metadata plugin. No site credentials were supplied, so no real post was published.
-4. A real closed-browser publication and a full-length 100-website live campaign. The backend scheduling architecture and database rules are verified, but those live acceptance tests require connected authorized targets.
-5. The included WordPress metadata plugin needs installation and validation on the authorized target; no third-party WordPress site was changed.
+1. Real email confirmation/registration, password-reset delivery and team invitation delivery after configuring production SMTP. The QA login used a provisioned, confirmed disposable account.
+2. An authorized WordPress staging site: publishing permission validation, draft creation, publish-by-ID, featured image upload, category/tag matching, and optional SEO metadata plugin. No site credentials were supplied, so no real post was published.
+3. A real closed-browser publication and a full-length 100-website live campaign. The backend scheduling architecture and database rules are verified, but those live acceptance tests require connected authorized targets.
+4. The included WordPress metadata plugin needs installation and validation on the authorized target; no third-party WordPress site was changed.
 
 Earlier failures were corrected before the passing results above: browser-target top-level-await compatibility, icon naming, unsupported Node custom DNS lookup in the Edge runtime, and TLS socket typing. Automatic review initially rejected broad Vault grants; they were removed because Supabase already provided the required service-role permissions. The final narrowed migration and validated deployments succeeded. No approval block remains.
