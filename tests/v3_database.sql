@@ -48,7 +48,10 @@ begin
   c2:=public.create_campaign(uid,aid2,'Browser dispatch',array[browser_site],300,now(),'{}');
   update public.publishing_jobs set scheduled_at=now()-interval '1 hour' where campaign_id=c2;
   if public.claim_next_job() is not null then raise exception 'API runner claimed browser work'; end if;
+  perform public.reserve_connection_version(uid,browser_site);
+  update public.websites set connection_status='connected',permission_status='verified' where id=browser_site;
   claimed:=public.claim_next_job('browser',wid);if claimed is null or claimed->'job'->>'browser_worker_id'<>wid::text then raise exception 'Tenant-scoped browser claim failed'; end if;
+  if (claimed->'job'->>'claimed_connection_version')::integer<>2 or (claimed->'job'->'target_snapshot'->>'connection_version')::integer<>1 then raise exception 'Queued jobs did not adopt the rotated credential generation'; end if;
   first_job:=(claimed->'job'->>'id')::uuid;first_token:=(claimed->'job'->>'lease_token')::uuid;
   failed_as_expected:=false;begin perform public.finish_job(first_job,first_token,'{"success":true,"url":"https://browser-fixture.publisher.org/post"}');exception when others then failed_as_expected:=true;end;if not failed_as_expected then raise exception 'Unverified browser publication accepted'; end if;
   perform public.mark_remote_attempt(first_job,first_token);perform public.save_remote_id(first_job,first_token,'123');
@@ -66,4 +69,4 @@ begin
   reset role;
 end $$;
 rollback;
-select 'passed' as result,24 as asserted_invariants,'All fixture accounts, sites, articles, campaigns, workers, jobs and queue clock changes rolled back' as cleanup;
+select 'passed' as result,25 as asserted_invariants,'All fixture accounts, sites, articles, campaigns, workers, jobs and queue clock changes rolled back' as cleanup;

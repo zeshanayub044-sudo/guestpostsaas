@@ -1,5 +1,10 @@
 // Declarative browser adapters only. No downloaded JavaScript or arbitrary actions.
 export const browserAdapters=['wordpress-classic-v1','custom-editor-v1'];
+export function browserDiscovery(platform,manifest,base){
+  if(manifest?.protocol==='guestpost.browser.v1'&&manifest.automation_permitted===false)return {workflow:null,policy:'not_permitted'};
+  const workflow=browserWorkflow(platform,manifest,base)||(platform==='wordpress'?browserWorkflow(platform,null,base):null);
+  return {workflow,policy:workflow?'available':'requires_configuration'};
+}
 export function browserWorkflow(platform, manifest, base) {
   const origin=new URL(base).origin;
   if(platform==='wordpress'&&!manifest) {
@@ -10,6 +15,7 @@ export function browserWorkflow(platform, manifest, base) {
       capabilities:{html:true,featured_image:false,seo:false,taxonomies:false,canonical:false}};
   }
   if(!manifest||manifest.protocol!=='guestpost.browser.v1'||manifest.id!=='custom-editor-v1'||manifest.automation_permitted!==true) return null;
+  if(manifest.idempotency!=='unique_slug')throw new Error('The browser connector must enforce unique per-job slugs for draft creation.');
   const paths={},selectors={};
   for(const key of ['login','editor','search','edit']) {
     const p=manifest.paths?.[key];
@@ -21,13 +27,14 @@ export function browserWorkflow(platform, manifest, base) {
     const s=manifest.selectors?.[key];
     if(typeof s!=='string'||!s||s.length>300||/[\r\n]/.test(s)||s.includes('>>'))throw new Error('Browser connector selectors are missing or invalid.');selectors[key]=s;
   }
-  return {id:'custom-editor-v1',protocol:manifest.protocol,automation_permitted:true,paths,selectors,capabilities:{html:true,featured_image:false,seo:false,taxonomies:false,canonical:false}};
+  return {id:'custom-editor-v1',protocol:manifest.protocol,automation_permitted:true,idempotency:'unique_slug',paths,selectors,capabilities:{html:true,featured_image:false,seo:false,taxonomies:false,canonical:false}};
 }
 export function connectionLabel(site) {
   if(site.connection_status==='connected')return site.connection_method==='browser'?'Browser Connected':'API Connected';
   return ({authorization_required:'Authorization Required',setup_required:'Connector Setup Required',checking:'Authorization Required',error:'Connection Failed',limited:'Connection Failed',revoked:'Authorization Required',untested:'Connector Setup Required',manual:'Connector Setup Required',unsupported:'Unsupported'})[site.connection_status]||'Connector Setup Required';
 }
 export function failure(code) {
+  if(code==='automation_restricted')return 'The destination prohibits this browser workflow. Use an authorized API connection or contact its administrator.';
   const messages={invalid_credentials:'The publishing login was rejected. Reconnect the authorized account.',challenge_required:'The website requires CAPTCHA, MFA or another account check. Complete it through the normal website; automation has stopped.',permission_denied:'This account does not have an enabled publishing action.',layout_changed:'The editor does not match the configured browser workflow. Update and verify the connector.',session_expired:'The publishing session expired. Reconnect the authorized account.',network_error:'The destination could not be reached securely. Check its availability.',verification_failed:'The public page could not be verified. Inspect the existing remote post before retrying.',outcome_unknown:'The remote outcome is uncertain. Reconcile the existing draft; another post will not be created.',unsupported_content:'This browser connector does not support this article’s image or metadata. Configure a compatible connector or use a supported article version.',lease_expired:'The task authorization expired. No further publishing actions are allowed.',internal_error:'The browser task stopped unexpectedly. Review its diagnostic code.'};
   return messages[code]||messages.internal_error;
 }

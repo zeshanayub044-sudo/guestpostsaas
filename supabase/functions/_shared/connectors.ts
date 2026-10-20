@@ -8,7 +8,8 @@ export type Runtime={http:typeof request;checkpoint:typeof rpc;now:()=>number};
 const defaultRuntime:Runtime={http:request,checkpoint:rpc,now:()=>Date.now()};
 const b64=(s:string)=>btoa(unescape(encodeURIComponent(s)));
 const segment=(s:any)=>encodeURIComponent(String(s));
-export function binding(site:Website){const value:any[]=[site.cms_type,site.website_url,site.api_endpoint,Object.entries(site.connector_config??{}).sort(([a],[b])=>a.localeCompare(b))];if(site.connection_method==='browser')value.push('browser',site.connection_version);return JSON.stringify(value);}
+function canonicalConfig(value:any):any{if(Array.isArray(value))return value.map(canonicalConfig);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>[k,canonicalConfig(v)]));return value;}
+export function binding(site:Website){const config=site.connection_method==='browser'?canonicalConfig(site.connector_config):site.connector_config;const value:any[]=[site.cms_type,site.website_url,site.api_endpoint,Object.entries(config??{}).sort(([a],[b])=>a.localeCompare(b))];if(site.connection_method==='browser')value.push('browser',site.connection_version);return JSON.stringify(value);}
 export function confirmation(site:Website,id:any,url:any,extra:Record<string,unknown>={}){
   const u=canonicalURL(url);
   if(u.origin!==new URL(site.website_url).origin)throw new RemoteError('The platform returned a publication URL outside the connected website.',0,0,true);

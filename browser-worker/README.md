@@ -33,6 +33,7 @@ The website owner installs `/.well-known/guestpost-browser.json` on the authoriz
   "protocol": "guestpost.browser.v1",
   "id": "custom-editor-v1",
   "automation_permitted": true,
+  "idempotency": "unique_slug",
   "paths": {
     "login": "/editor/login",
     "editor": "/editor/new",
@@ -68,6 +69,7 @@ All paths remain on the connected HTTPS origin. Fields are ordinary editable inp
 - Jobs have a hard browser deadline of two minutes (gateway maximum three minutes), shorter than their database lease. Contexts are ephemeral and closed before completion. No cookies, persistent profiles, traces or session-state files are saved.
 - A local CONNECT proxy validates all DNS results and pins a public IPv4 connection. Chromium validates TLS end-to-end. Cross-origin navigation/subresources, private/reserved addresses, downloads, service workers and insecure protocols are blocked. There is no stealth, fingerprint spoofing, CAPTCHA solver or MFA bypass.
 - CAPTCHA, MFA, permission failures, expired sessions, changed layouts and failed public verification return distinct safe error codes. Authentication challenges require the normal human/provider flow and a reconnection; there is no challenge handoff/session import feature in this release.
+- The worker rechecks the destination's browser manifest before entering credentials. An explicit prohibition stops the workflow, including the default WordPress profile. A missing or changed custom manifest requires reconnection.
 - Optional `DIAGNOSTICS_DIR` screenshots mask the entire page body, because arbitrary CMS DOM may contain credentials or article data. They show viewport/failure context only; task phase and safe error code are the useful diagnostic. Screenshots are local, private and not uploaded. No raw CMS exception messages or HTML are logged.
 - Supabase Cron runs a connection monitor; expired checks fail accurately, and connected browser workflows are rechecked after 24 hours. Offline workers exclude browser connections from new campaign allocation. API publishing continues.
 
@@ -81,3 +83,5 @@ npm run test:e2e
 ```
 
 The fixture suite runs real Chromium against a disposable local editorial server. Its local HTTP target is used only by the test harness; production entrypoint validation/proxy has no localhost or insecure-transport override. The fixture does not demonstrate a production browser host, real CMS credentials or provider permission to automate.
+
+The custom manifest’s `idempotency: unique_slug` is a destination contract: repeated draft-create submissions with the same per-job slug must return the same saved record, and publishing an already public ID must not create another publication. Browsers can repeat a POST after a lost connection. The worker supplies the deterministic slug before the first save; a target that cannot enforce this contract needs a dedicated connector. The Chromium fixture enforces and tests this behavior.

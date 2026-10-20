@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import {publicAddress,approvedOrigin,pinnedProxy} from '../src/network.mjs';
-import {browserWorkflow,connectionLabel} from '../../supabase/functions/_shared/browser-contract.mjs';
+import {browserWorkflow,browserDiscovery,connectionLabel} from '../../supabase/functions/_shared/browser-contract.mjs';
 import {automaticallyEligible} from '../../src/v3.js';
 test('browser egress rejects private and special-use addresses',()=>{for(const ip of ['127.0.0.1','10.0.0.1','172.16.0.1','192.168.0.1','169.254.169.254','100.64.0.1','0.0.0.0','224.0.0.1','::1','fc00::1','::ffff:127.0.0.1'])assert.equal(publicAddress(ip),false,ip);assert.equal(publicAddress('8.8.8.8'),true);});
 test('browser origin validation prevents URL and network credential tricks',()=>{for(const url of ['http://domain.com','https://localhost','https://a.internal','https://127.0.0.1','https://[::1]','https://u:p@domain.com','https://domain.com:444','https://domain.com.'])assert.throws(()=>approvedOrigin(url));assert.equal(approvedOrigin('https://publisher.org/path'),'https://publisher.org');});
@@ -19,4 +19,9 @@ test('browser eligibility needs a verified connection and a live worker',()=>{
   const site={status:'active',connection_status:'connected',cms_type:'custom',connection_method:'browser'};
   assert.equal(automaticallyEligible(site,[]),false);assert.equal(automaticallyEligible(site,[{active:true,last_seen_at:new Date().toISOString()}]),true);assert.equal(automaticallyEligible({...site,connection_status:'checking'},[{active:true,last_seen_at:new Date().toISOString()}]),false);
   assert.equal(connectionLabel(site),'Browser Connected');assert.equal(connectionLabel({...site,connection_method:'api'}),'API Connected');assert.equal(connectionLabel({connection_status:'setup_required'}),'Connector Setup Required');
+});
+test('an explicit destination prohibition blocks even the WordPress browser fallback',()=>{
+  const denied={protocol:'guestpost.browser.v1',automation_permitted:false};
+  for(const platform of ['wordpress','custom'])assert.deepEqual(browserDiscovery(platform,denied,'https://publisher.org'),{workflow:null,policy:'not_permitted'});
+  assert.equal(browserDiscovery('wordpress',null,'https://publisher.org').workflow.id,'wordpress-classic-v1');
 });

@@ -3,7 +3,7 @@ import {request,RemoteError} from './network.ts';
 import {connector} from './registry.ts';
 import {binding,Website} from './connectors.ts';
 import catalog from './catalog.json' with {type:'json'};
-import {browserWorkflow} from './browser-contract.mjs';
+import {browserDiscovery} from './browser-contract.mjs';
 
 const fail=(message:string)=>new RemoteError(message,400);
 export async function discover(value:unknown){
@@ -24,12 +24,12 @@ export async function discover(value:unknown){
     if(platform==='manual'&&(/wp-content\/|wp-includes\//.test(lower)||/api\.w\.org/.test(headers.link||'')))platform='wordpress';
   }
   // Check the documented generic endpoint independently of WordPress discovery.
-  let customApi=false,browser:any=null,browserError='';
+  let customApi=false,browser:any=null,browserError='',browserPolicy='requires_configuration';
   try{const r=await request(u.origin+'/.well-known/guestpost','GET',{},undefined,4000);customApi=r.data?.protocol==='guestpost.v1';if(customApi&&platform==='manual'){platform='custom';config.connector_url=u.origin+'/.well-known/guestpost';}}catch{/* Not an installed native connector. */}
-  try{const r=await request(u.origin+'/.well-known/guestpost-browser.json','GET',{},undefined,4000);browser=browserWorkflow(platform,r.data,u.href);}catch(e){if(e instanceof Error&&!/HTTP|JSON|timed out|Redirect/.test(e.message))browserError='The browser connector manifest needs correction.';}
-  if(!browser&&platform==='wordpress')browser=browserWorkflow(platform,null,u.href);
+  try{const r=await request(u.origin+'/.well-known/guestpost-browser.json','GET',{},undefined,4000);const found=browserDiscovery(platform,r.data,u.href);browser=found.workflow;browserPolicy=found.policy;}catch(e){if(e instanceof Error&&!/HTTP|JSON|timed out|Redirect/.test(e.message))browserError='The browser connector manifest needs correction.';}
+  if(!browser&&browserPolicy!=='not_permitted'&&platform==='wordpress'){const found=browserDiscovery(platform,null,u.href);browser=found.workflow;browserPolicy=found.policy;}
   const info=catalog.find(p=>p.id===platform)!;
-  const report={native_api:platform==='manual'?'not_detected':'detected',platform_connector:platform==='manual'?'not_configured':'available',browser_workflow:browser?'available':'requires_configuration',reachable,recommended_action:browser?'Connect a supported API credential, or authorize the configured browser workflow.':platform==='manual'?'Install an authorized API connector or a permitted browser workflow manifest.':info.guide,...(browserError?{browser_note:browserError}:{})};
+  const report={native_api:platform==='manual'?'not_detected':'detected',platform_connector:platform==='manual'?'not_configured':'available',browser_workflow:browserPolicy,reachable,recommended_action:browser?'Connect a supported API credential, or authorize the configured browser workflow.':browserPolicy==='not_permitted'?'The destination prohibits browser automation. Use an authorized API connection or contact its administrator.':platform==='manual'?'Install an authorized API connector or a permitted browser workflow manifest.':info.guide,...(browserError?{browser_note:browserError}:{})};
   return {platform:platform==='manual'?'custom':platform,config,reachable,name:u.hostname.replace(/^www\./,''),guide:info.guide,authentication:info.authentication,docs:info.docs,status:!reachable?'error':platform==='manual'?'setup_required':'authorization_required',browser,report};
 }
 function stringConfig(raw:any){

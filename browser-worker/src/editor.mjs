@@ -11,7 +11,7 @@ export async function runEditor({context,task,site,credentials,article,kind,chec
   const page=await context.newPage();page.setDefaultTimeout(15000);page.setDefaultNavigationTimeout(20000);
   const alive=()=>{if(signal?.aborted)stop('lease_expired');};
   const challenges=async()=>{alive();for(const item of await page.locator(challenge).all())if(await item.isVisible())stop('challenge_required');};
-  const go=async(path,params={})=>{alive();for(const [key,value]of Object.entries(params))path=path.replaceAll('{'+key+'}',encodeURIComponent(value));const u=new URL(path,origin);if(u.origin!==origin)stop('layout_changed');const response=await page.goto(u.href,{waitUntil:'domcontentloaded'});if(response?.status()>=500)stop('network_error');await challenges();};
+  const go=async(path,params={})=>{alive();for(const [key,value]of Object.entries(params))path=path.replaceAll('{'+key+'}',encodeURIComponent(value));const u=new URL(path,origin);if(u.origin!==origin)stop('layout_changed');const response=await page.goto(u.href,{waitUntil:'domcontentloaded'});if(response?.status()>=500)stop('network_error');await challenges();return response;};
   const field=async(selector)=>{alive();const locator=page.locator(selector);if(await locator.count()!==1)stop('layout_changed');return locator;};
   const visible=async(selector)=>await page.locator(selector).isVisible().catch(()=>false);
   const classic=workflow.id==='wordpress-classic-v1';
@@ -20,6 +20,13 @@ export async function runEditor({context,task,site,credentials,article,kind,chec
   const setSlug=async(value)=>{if(classic&&!await visible(s.slug)){if(!await visible('.edit-slug'))stop('layout_changed');await page.locator('.edit-slug').click();await page.locator('#new-post-slug').fill(value);await page.locator('#edit-slug-buttons .save').click();}else await (await field(s.slug)).fill(value);};
   const save=async()=>{alive();await (await field(s.save_draft)).click();await page.waitForLoadState('domcontentloaded');await challenges();};
   const remoteID=async()=>{const id=await (await field(s.remote_id)).inputValue();if(!/^[A-Za-z0-9_-]{1,100}$/.test(id))stop('outcome_unknown');return id;};
+  const policyResponse=await go('/.well-known/guestpost-browser.json');let currentManifest;
+  try{currentManifest=await policyResponse?.json();}catch{/* Standard WordPress need not install a custom manifest. */}
+  if(currentManifest?.protocol==='guestpost.browser.v1'&&currentManifest.automation_permitted===false)stop('automation_restricted');
+  if(workflow.id==='custom-editor-v1'||currentManifest?.protocol==='guestpost.browser.v1'){
+    const current=browserWorkflow(site.cms_type,currentManifest,site.website_url);
+    if(!current||JSON.stringify(current)!==JSON.stringify(workflow))stop('layout_changed');
+  }
   await go(p.login);await (await field(s.username)).fill(credentials.username);await (await field(s.password)).fill(credentials.password);
   await challenges();await (await field(s.login_submit)).click();await page.waitForLoadState('domcontentloaded');await challenges();
   if(!await visible(s.authenticated))stop('invalid_credentials');

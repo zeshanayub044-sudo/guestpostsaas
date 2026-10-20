@@ -46,6 +46,7 @@ export function createV2Experience(ctx){
     form.onsubmit=e=>{e.preventDefault();run(async()=>{
       const d=Object.fromEntries(new FormData(form));let config;try{config=JSON.parse(d.advanced_config||'{}');}catch{throw new Error('Advanced settings must be valid JSON.');}
       for(const [key,value]of Object.entries(d))if(key.startsWith('config_')&&value)config[key.slice(7)]=value;
+      if(siteDraft.connection_method==='browser')delete config.browser_workflow;
       const result=await api('website.connect',{...d,id,cms_type:d.cms_type==='auto'&&detected!=='auto'?detected:d.cms_type,connector_config:config,min_interval_seconds:Number(d.pause_minutes)*60,authorized:!!d.authorized,browser_authorized:!!d.browser_authorized});
       id=result.id;form.elements.password.value='';
       if(result.status==='connected'){await refresh();navigate('websites');toast(result.message);return;}

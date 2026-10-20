@@ -7,10 +7,10 @@ Scope: `zeshanayub044-sudo/guestpostsaas` and dedicated Supabase project `aiolue
 | Suite | Result |
 |---|---|
 | Domain/CSV | 7 passed |
-| Existing Edge/transport/API connector suite | 18 passed |
-| Browser origin, DNS/proxy and manifest/eligibility security | 5 passed |
-| Real Chromium editorial fixture | 11 scenarios plus suite passed: connection probe; draft/publish/public content/backlink; repeated known ID; lost draft checkpoint; lost publish response; wrong public page; CAPTCHA/MFA; missing permission; changed layout; expired session; bad credentials; unresolved create |
-| Live database rollback suite | 24 assertions passed: 200 unique targets; earliest schedule; five-minute cadence; 501/duplicate/short-interval rejection; immutable duplicate ledger after article edits; atomic claim/no overlap; stale completion; unknown remote outcomes; retry cadence; pause; API/browser separation; browser claim identity; verified publication requirement; completed lease fencing; async check; version rotation; private credentials and worker functions; tenant RLS |
+| Existing Edge/transport/API connector suite | 20 passed, including JSONB ordering and legacy API credential binding |
+| Browser origin, DNS/proxy and manifest/eligibility security | 6 passed, including an explicit destination prohibition blocking the WordPress fallback |
+| Real Chromium editorial fixture | 13 scenarios plus suite passed: connection probe; draft/publish/public content/backlink; repeated known ID; lost draft checkpoint; lost create response; lost publish response; wrong public page; destination prohibition; CAPTCHA/MFA; missing permission; changed layout; expired session; bad credentials; unresolved create |
+| Live database rollback suite | 25 assertions passed: 200 unique targets; earliest schedule; five-minute cadence; 501/duplicate/short-interval rejection; immutable duplicate ledger after article edits; atomic claim/no overlap; stale completion; unknown remote outcomes; retry cadence; pause; API/browser separation; browser claim identity; verified publication requirement; completed lease fencing; async check; version rotation; private credentials and worker functions; tenant RLS |
 | Type checks | API, publish-worker, OAuth callback and browser-bridge passed |
 | Production build | Passed |
 

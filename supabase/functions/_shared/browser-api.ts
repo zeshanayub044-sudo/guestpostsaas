@@ -18,6 +18,7 @@ async function payload(worker:any,task:any,kind:string){
   const {data:site}=await db().from('websites').select('*').eq('id',task.website_id).eq('tenant_id',worker.tenant_id).single();
   if(!site||site.connection_method!=='browser'||!browserAdapters.includes(site.connector_config?.browser_workflow?.id))throw new Error('Browser connector is unavailable.');
   if(kind==='check'&&site.connection_version!==task.connection_version)throw new Error('Connection changed.');
+  if(kind==='job'&&site.connection_version!==task.claimed_connection_version)throw new Error('Credentials changed during this attempt.');
   const credentials=await rpc('read_credentials',{p_website:site.id});
   if(!credentials||credentials.connection_key!==binding(site))throw new Error('Publishing credentials changed.');
   return {site,credentials};
@@ -36,7 +37,7 @@ export async function browserGateway(req:Request){
       const {job,campaign,website}=claimed;
       try{
         const data=await payload(worker,job,'job');
-        if(binding({...website,...job.target_snapshot})!==binding(data.site))throw new Error('Connection changed.');
+        if(binding({...website,...job.target_snapshot,connection_version:data.site.connection_version})!==binding(data.site))throw new Error('Connection workflow changed.');
         return Response.json({kind:'job',task:job,article:{...campaign.article_snapshot,...job.overrides},...data});
       }catch{await rpc('finish_job',{p_job:job.id,p_token:job.lease_token,p_result:{success:false,auth_invalid:true,error:failure('session_expired')}});return Response.json({kind:'idle'});}
     }
@@ -48,7 +49,7 @@ export async function browserGateway(req:Request){
     if(action==='complete'&&['published','verified','failed'].includes(task.status))return Response.json({ok:true,already_completed:true});
     if(task.status!=='processing'||Date.parse(task.lease_until)<=Date.now())throw new Error('Task lease expired.');
     const {site}=await payload(worker,task,kind);
-    if(kind==='job'&&(binding({...site,...task.target_snapshot})!==binding(site)||Date.parse(task.started_at)+180000<=Date.now()))throw new Error('Task connection or deadline changed.');
+    if(kind==='job'&&(binding({...site,...task.target_snapshot,connection_version:task.claimed_connection_version})!==binding(site)||Date.parse(task.started_at)+180000<=Date.now()))throw new Error('Task connection or deadline changed.');
     if(action==='checkpoint'&&kind==='job'){
       const name=b.phase==='remote_id'?'save_remote_id':b.phase==='before_remote'?'mark_remote_attempt':null;
       if(!name)throw new Error('Invalid checkpoint.');
@@ -58,6 +59,7 @@ export async function browserGateway(req:Request){
     if(action==='heartbeat')return Response.json({ok:true,deadline:task.lease_until});
     if(action!=='complete')throw new Error('Unknown worker operation.');
     const success=b.success===true,code=text(b.code||'internal_error',80),message=failure(code);
+    if(!success&&['automation_restricted','layout_changed'].includes(code))await db().from('websites').update({connection_status:'setup_required',permission_status:'unverified',connection_message:message,connection_report:{...site.connection_report,browser_workflow:code==='automation_restricted'?'not_permitted':'requires_configuration'}}).eq('id',site.id).eq('connection_version',site.connection_version);
     if(kind==='check'){
       const ok=await rpc('finish_browser_check',{p_worker:worker.id,p_check:task.id,p_token:task.lease_token,p_success:success,p_code:success?'':code,p_message:success?'Browser editorial fields and publishing permission verified.':message});if(!ok)throw new Error('Connection verification expired.');
     }else{
