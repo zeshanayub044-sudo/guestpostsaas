@@ -1,0 +1,8 @@
+**/node_modules
+dist
+.local
+.git
+.env*
+**/*.log
+browser-worker/test
+browser-worker/diagnostics

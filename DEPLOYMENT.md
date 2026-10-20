@@ -1,3 +1,13 @@
+# Version 3 deployment
+
+Existing resource identities remain unchanged. Apply the V3 migration only to `aiolueflrpraiaqvdscp`; deploy API, publish-worker, oauth-callback and browser-bridge with all shared files, including `.mjs`. Function bodies authenticate users, the private Cron token, one-use OAuth state or a tenant worker token respectively; gateway JWT checking is intentionally disabled in config.toml.
+
+GitHub Actions builds and tests the static application before deploying Pages. The browser worker is separate infrastructure. Follow [its deployment guide](browser-worker/README.md); a server/provider account and permitted CMS credentials are required for live acceptance. No paid hosting or browser worker is automatically created by the Pages workflow.
+
+The V3 migration retains existing rows and increases credential versions for browser rotations. Legacy manual-only records become Connector Setup Required. Run [transactional database tests](tests/v3_database.sql) only on the dedicated project; their fixture writes and queue clock changes roll back. See [operational rollback](docs/V3-ROLLBACK.sql).
+
+The following provider setup remains applicable from V2.
+
 # Deployment and operations — GuestPost Universal V2
 
 ## Dedicated resources

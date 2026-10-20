@@ -3,6 +3,7 @@ import {request,RemoteError} from './network.ts';
 import {connector} from './registry.ts';
 import {binding,Website} from './connectors.ts';
 import catalog from './catalog.json' with {type:'json'};
+import {browserWorkflow} from './browser-contract.mjs';
 
 const fail=(message:string)=>new RemoteError(message,400);
 export async function discover(value:unknown){
@@ -22,8 +23,14 @@ export async function discover(value:unknown){
     catch{/* A site without WordPress is never sent WordPress credentials. */}
     if(platform==='manual'&&(/wp-content\/|wp-includes\//.test(lower)||/api\.w\.org/.test(headers.link||'')))platform='wordpress';
   }
+  // Check the documented generic endpoint independently of WordPress discovery.
+  let customApi=false,browser:any=null,browserError='';
+  try{const r=await request(u.origin+'/.well-known/guestpost','GET',{},undefined,4000);customApi=r.data?.protocol==='guestpost.v1';if(customApi&&platform==='manual'){platform='custom';config.connector_url=u.origin+'/.well-known/guestpost';}}catch{/* Not an installed native connector. */}
+  try{const r=await request(u.origin+'/.well-known/guestpost-browser.json','GET',{},undefined,4000);browser=browserWorkflow(platform,r.data,u.href);}catch(e){if(e instanceof Error&&!/HTTP|JSON|timed out|Redirect/.test(e.message))browserError='The browser connector manifest needs correction.';}
+  if(!browser&&platform==='wordpress')browser=browserWorkflow(platform,null,u.href);
   const info=catalog.find(p=>p.id===platform)!;
-  return {platform,config,reachable,name:u.hostname.replace(/^www\./,''),guide:info.guide,authentication:info.authentication,docs:info.docs,status:platform==='manual'?'unsupported':'authorization_required'};
+  const report={native_api:platform==='manual'?'not_detected':'detected',platform_connector:platform==='manual'?'not_configured':'available',browser_workflow:browser?'available':'requires_configuration',reachable,recommended_action:browser?'Connect a supported API credential, or authorize the configured browser workflow.':platform==='manual'?'Install an authorized API connector or a permitted browser workflow manifest.':info.guide,...(browserError?{browser_note:browserError}:{})};
+  return {platform:platform==='manual'?'custom':platform,config,reachable,name:u.hostname.replace(/^www\./,''),guide:info.guide,authentication:info.authentication,docs:info.docs,status:!reachable?'error':platform==='manual'?'setup_required':'authorization_required',browser,report};
 }
 function stringConfig(raw:any){
   if(typeof raw==='string'){if(raw.length>16000)throw fail('Advanced settings exceed their size limit.');try{raw=JSON.parse(raw||'{}');}catch{throw fail('Advanced connection settings must be valid JSON.');}}
@@ -70,15 +77,15 @@ export async function connectWebsite(actor:any,b:any){
   const service=db();const u=canonicalURL(b.website_url);u.search='';const website_url=u.href.replace(/\/$/,'');
   let old:any;
   if(b.id){const r=await service.from('websites').select('*').eq('id',b.id).eq('tenant_id',actor.tenant_id).single();old=r.data;if(!old)throw fail('Website not found in your workspace.');}
+  if(old?.connection_method==='browser'&&!b.password)throw fail('Use Test connection to recheck this browser workflow, or provide fresh credentials to rotate it.');
   if(!old&&!b.authorized)throw fail('Confirm that you are authorized to publish to this website.');
-  const discovery=b.cms_type&&b.cms_type!=='auto'?null:await discover(website_url);
+  const discovery=await discover(website_url);
   const cms_type=b.cms_type&&b.cms_type!=='auto'?String(b.cms_type):discovery!.platform;
   let spec:any,configurationError='';
   try{spec=connectionSpec(website_url,cms_type,{...(discovery?.config??{}),...stringConfig(b.connector_config),...(b.api_endpoint?{api_endpoint:b.api_endpoint}:{})});}
   catch(e){configurationError=e instanceof Error?e.message:'More connection details are required.';const safe=stringConfig(b.connector_config);spec={api_endpoint:cms_type==='webflow'?'https://api.webflow.com/v2':cms_type==='blogger'?'https://www.googleapis.com/blogger/v3':cms_type==='wix'?'https://www.wixapis.com':website_url,connector_config:safe};}
-  const site:Website={id:old?.id||crypto.randomUUID(),website_url,cms_type,...spec};
+  const site:Website={id:old?.id||crypto.randomUUID(),website_url,cms_type,...spec,connection_method:'api',connection_version:(old?.connection_version||0)+1};
   const unchanged=old&&binding(old)===binding(site);
-  if(old&&!unchanged){const {count}=await service.from('publishing_jobs').select('id',{head:true,count:'exact'}).eq('website_id',old.id);if(count)throw fail('This connection has publishing history. Add a new website connection when changing its destination or integration settings.');await rpc('revoke_credentials',{p_website:old.id});}
   let credentials=b.password?{username:text(b.username,254),password:text(b.password,4000,true),...(site.connector_config.client_id?{client_id:site.connector_config.client_id}:{})}:unchanged?await rpc('read_credentials',{p_website:site.id}):null;
   if(credentials?.connection_key&&credentials.connection_key!==binding(site))credentials=null;
   let result:any={connection_status:cms_type==='manual'?'manual':'authorization_required',permission_status:'unverified',message:configurationError||catalog.find(p=>p.id===cms_type)?.guide||'Connect using a supported authorization method.'};
@@ -86,11 +93,25 @@ export async function connectWebsite(actor:any,b:any){
     try{const verified=await testConnection(site,credentials);result={...verified,connection_status:'connected'};}
     catch(e){result={connection_status:e instanceof RemoteError&&e.status===403?'limited':e instanceof RemoteError&&e.status===401?'authorization_required':'error',permission_status:'unverified',message:e instanceof RemoteError?e.message:'The connection could not be verified. Confirm its settings and try again.'};credentials=null;}
   }
-  const payload={...site,tenant_id:actor.tenant_id,owner_id:old?.owner_id||actor.id,website_name:text(b.website_name||old?.website_name||discovery?.name||u.hostname,200,true),category:text(b.category??old?.category,100),language:text(b.language||old?.language||'en',20),status:b.status==='disabled'?'disabled':'active',min_interval_seconds:integer(b.min_interval_seconds??old?.min_interval_seconds??300,300,86400),connection_status:result.connection_status,permission_status:result.permission_status,connection_message:result.message,tested_at:result.connection_status==='connected'?new Date().toISOString():null,updated_at:new Date().toISOString()};
-  const saved=old?await service.from('websites').update(payload).eq('id',site.id):await service.from('websites').insert(payload);if(saved.error)throw fail(saved.error.code==='23505'?'This website is already in your workspace. Edit its existing connection.':'The website could not be saved.');
-  if(credentials&&result.connection_status==='connected'){
-    await rpc('store_credentials',{p_website:site.id,p_credentials:{...credentials,connection_key:binding(site),api_endpoint:site.api_endpoint}});
-    const {error}=await service.from('websites').update({connection_status:'connected',permission_status:result.permission_status,connection_message:result.message,tested_at:payload.tested_at,connector_config:site.connector_config}).eq('id',site.id);if(error)throw fail('The connection result could not be saved.');
+  let checkBrowser=false;
+  const workflow=discovery.browser;
+  if(result.connection_status!=='connected'&&b.browser_authorized===true&&workflow&&b.password){
+    site.connection_method='browser';site.api_endpoint=website_url;site.connector_config={browser_workflow:workflow};
+    credentials={username:text(b.username,254,true),password:String(b.password)};
+    result={connection_status:'checking',permission_status:'unverified',message:'The browser worker must verify the editorial workflow before this site can receive campaigns.'};checkBrowser=true;
+  }else if(result.connection_status!=='connected'&&(cms_type==='manual'||!discovery.reachable||configurationError||!credentials)){
+    result.connection_status=!discovery.reachable?'error':configurationError||!workflow&&cms_type==='custom'?'setup_required':'authorization_required';
+    if(result.connection_status==='setup_required')result.message=configurationError||'No installed API or browser workflow was found. Configure an authorized connector; this website is not yet an automatic publishing target.';
+  }
+  if(old&&old.connection_status==='connected'&&!b.password&&old.connection_method==='browser')throw fail('Use Test connection to recheck this browser workflow, or provide fresh credentials to rotate it.');
+  if(old&&binding({...old,connection_version:site.connection_version})!==binding(site)){const {count}=await service.from('publishing_jobs').select('id',{head:true,count:'exact'}).eq('website_id',old.id);if(count)throw fail('This connection has publishing history. Add a new connection to change its destination or publishing workflow.');}
+  if(old)site.connection_version=await rpc('reserve_connection_version',{p_actor:actor.id,p_website:old.id});
+  const payload={...site,connection_report:{...discovery.report,native_api:result.connection_status==='connected'?'verified':discovery.report.native_api,browser_workflow:checkBrowser?'queued':discovery.report.browser_workflow},tenant_id:actor.tenant_id,owner_id:old?.owner_id||actor.id,website_name:text(b.website_name||old?.website_name||discovery?.name||u.hostname,200,true),category:text(b.category??old?.category,100),language:text(b.language||old?.language||'en',20),status:b.status==='disabled'?'disabled':'active',min_interval_seconds:integer(b.min_interval_seconds??old?.min_interval_seconds??300,300,86400),connection_status:result.connection_status,permission_status:result.permission_status,connection_message:result.message,tested_at:result.connection_status==='connected'?new Date().toISOString():null,updated_at:new Date().toISOString()};
+  const saved=old?await service.from('websites').update(payload).eq('id',site.id).eq('connection_version',site.connection_version).select('id').single():await service.from('websites').insert(payload).select('id').single();if(saved.error)throw fail(saved.error.code==='23505'?'This website is already in your workspace. Edit its existing connection.':'The website could not be saved. Refresh if another administrator changed its connection.');
+  if(credentials&&(result.connection_status==='connected'||checkBrowser)){
+    await rpc('store_connection_credentials',{p_website:site.id,p_version:site.connection_version,p_credentials:{...credentials,connection_key:binding(site),api_endpoint:site.api_endpoint}});
+    const {error}=await service.from('websites').update({connection_status:result.connection_status,permission_status:result.permission_status,connection_message:result.message,tested_at:payload.tested_at,connector_config:site.connector_config}).eq('id',site.id).eq('connection_version',site.connection_version).select('id').single();if(error)throw fail('The connection result could not be saved. Refresh the connection before retrying.');
+    if(checkBrowser)await rpc('enqueue_browser_check',{p_actor:actor.id,p_website:site.id});
   }else if(old&&!credentials)await rpc('revoke_credentials',{p_website:site.id}).then(async()=>{await service.from('websites').update({status:payload.status,connection_status:result.connection_status,connection_message:result.message}).eq('id',site.id);});
-  return {id:site.id,platform:cms_type,status:result.connection_status,message:result.message,guide:catalog.find(p=>p.id===cms_type)?.guide,docs:catalog.find(p=>p.id===cms_type)?.docs};
+  return {id:site.id,platform:cms_type,status:result.connection_status,message:result.message,report:payload.connection_report,guide:catalog.find(p=>p.id===cms_type)?.guide,docs:catalog.find(p=>p.id===cms_type)?.docs};
 }

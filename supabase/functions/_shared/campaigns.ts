@@ -3,6 +3,10 @@ import {wixRichContent} from './additional-connectors.ts';
 import catalog from './catalog.json' with {type:'json'};
 
 export function validateArticleForSite(site:any,article:any){
+  if(site.connection_method==='browser'){
+    if(article.featured_image||article.canonical_url||article.meta_title||article.meta_description||article.category||article.tags?.length||/<img\b/i.test(article.content))throw new Error('This browser workflow supports title, safe HTML and links. Image, taxonomy and SEO field mappings require a compatible connector.');
+    return;
+  }
   if(site.cms_type==='wix'){
     if(article.featured_image)throw new Error('Wix featured images need a Wix Media import. Remove this featured image for Wix targets or publish that version manually.');
     wixRichContent(article.content);

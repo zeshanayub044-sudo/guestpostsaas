@@ -7,3 +7,5 @@ supabase/.temp/
 .local/
 test-results/
 *.log
+browser-worker/diagnostics/
+**/storage-state*.json

@@ -21,12 +21,18 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm test
+      - run: npm ci --prefix browser-worker --ignore-scripts
+      - run: npm --prefix browser-worker test
+      - name: Browser editorial workflow and recovery tests
+        run: |
+          node browser-worker/node_modules/playwright/cli.js install --with-deps chromium --only-shell
+          npm --prefix browser-worker run test:e2e
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.5.6
       - name: Check and test publishing connectors
         run: |
-          deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts
+          deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts supabase/functions/browser-bridge/index.ts
           deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts
       - run: npm run build
         env:

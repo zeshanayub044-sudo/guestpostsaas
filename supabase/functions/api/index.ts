@@ -1,4 +1,5 @@
 import {upgradeActions,upgradeAction} from '../_shared/upgrade-api.ts';
+import {browserActions,browserAction} from '../_shared/browser-api.ts';
 import {db,rpc,articleData,canonicalURL,text,integer,uuid} from '../_shared/core.ts';
 import {WordPress} from '../_shared/wordpress.ts';
 import {RemoteError,request} from '../_shared/network.ts';
@@ -13,6 +14,7 @@ async function execute(req:Request){
   if(!actor)return {status:403,body:{error:'Your workspace access is disabled.'}};
   const raw=await req.text();if(raw.length>700000)throw new Error('Request exceeds the size limit.');
   const {action,data:b={}}=JSON.parse(raw);
+  if(browserActions.has(action))return {status:200,body:await browserAction(actor,action,b)};
   if(upgradeActions.has(action))return {status:200,body:await upgradeAction(actor,action,b)};
   const admin=actor.role==='super_admin'||actor.role==='admin';
   const publisher=admin||actor.can_publish;

@@ -7,3 +7,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.oauth-callback]
 verify_jwt = false
+[functions.browser-bridge]
+verify_jwt = false

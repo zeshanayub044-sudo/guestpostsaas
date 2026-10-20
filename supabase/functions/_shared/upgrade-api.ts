@@ -15,6 +15,7 @@ export async function upgradeAction(actor:any,action:string,b:any){
   if(action==='website.test'){
     const site=await own(b.id),credentials=await rpc('read_credentials',{p_website:site.id});
     if(!credentials||credentials.connection_key!==binding(site))throw new Error('Reconnect this website using its supported authorization method.');
+    if(site.connection_method==='browser'){await rpc('enqueue_browser_check',{p_actor:actor.id,p_website:site.id});return {status:'checking',message:'Browser workflow verification queued. The result appears in Websites.'};}
     try{const verified=await testConnection(site,credentials);const{error}=await service.from('websites').update({connection_status:'connected',permission_status:verified.permission_status,connection_message:verified.message,tested_at:new Date().toISOString()}).eq('id',site.id);if(error)throw new Error('Could not save the connection test.');result={...verified,status:'connected'};}
     catch(e){await service.from('websites').update({connection_status:'authorization_required',permission_status:'unverified',connection_message:'The connection needs attention. Reconnect the supported publishing account.'}).eq('id',site.id);throw new Error(e instanceof Error?e.message:'Connection test failed.');}
   }

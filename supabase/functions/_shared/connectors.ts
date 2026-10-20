@@ -2,13 +2,13 @@ import {request,RemoteError} from './network.ts';
 import {rpc,canonicalURL,cleanHTML,text} from './core.ts';
 import {WordPress} from './wordpress.ts';
 
-export type Website={id:string;website_url:string;api_endpoint:string;cms_type:string;connector_config:Record<string,any>};
+export type Website={id:string;website_url:string;api_endpoint:string;cms_type:string;connector_config:Record<string,any>;connection_method?:string;connection_version?:number};
 export type Credential=Record<string,any>;
 export type Runtime={http:typeof request;checkpoint:typeof rpc;now:()=>number};
 const defaultRuntime:Runtime={http:request,checkpoint:rpc,now:()=>Date.now()};
 const b64=(s:string)=>btoa(unescape(encodeURIComponent(s)));
 const segment=(s:any)=>encodeURIComponent(String(s));
-export function binding(site:Website){return JSON.stringify([site.cms_type,site.website_url,site.api_endpoint,Object.entries(site.connector_config??{}).sort(([a],[b])=>a.localeCompare(b))]);}
+export function binding(site:Website){const value:any[]=[site.cms_type,site.website_url,site.api_endpoint,Object.entries(site.connector_config??{}).sort(([a],[b])=>a.localeCompare(b))];if(site.connection_method==='browser')value.push('browser',site.connection_version);return JSON.stringify(value);}
 export function confirmation(site:Website,id:any,url:any,extra:Record<string,unknown>={}){
   const u=canonicalURL(url);
   if(u.origin!==new URL(site.website_url).origin)throw new RemoteError('The platform returned a publication URL outside the connected website.',0,0,true);

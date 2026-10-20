@@ -1,4 +1,4 @@
-# GuestPost Universal — Version 2
+# GuestPost Universal — Version 3
 
 A vanilla JavaScript publishing workspace with platform-specific connectors, Supabase Auth, encrypted credentials and a persistent sequential publishing queue.
 
@@ -6,6 +6,19 @@ A vanilla JavaScript publishing workspace with platform-specific connectors, Sup
 - [Repository](https://github.com/zeshanayub044-sudo/guestpostsaas)
 - Dedicated Supabase project: **guest posts saas**, `aiolueflrpraiaqvdscp`, Mumbai.
 - [Deployment and provider setup](DEPLOYMENT.md) · [Verified results and remaining acceptance](TEST-RESULTS.md)
+
+
+## V3 connection upgrade
+
+Website setup checks **native APIs → dedicated CMS connectors → permitted browser workflows**. Unrecognized sites now receive Connector Setup Required with a staged report, rather than an immediate manual-only conclusion. Existing website records, articles and publishing history are retained.
+
+Browser publishing is a separate Node/Playwright service with tenant-scoped worker registration, encrypted task credentials, durable checkpoints, deadline fencing and public-page verification. Its code and isolated-server configuration are supplied; **a production browser host has not been provisioned**. A site is not eligible merely because a URL or password works. Browser targets need both a verified workflow and an online worker.
+
+- [Architecture and rollout](docs/V3-ARCHITECTURE.md)
+- [Browser worker deployment, supported profiles and custom manifest](browser-worker/README.md)
+- [Current verification and remaining acceptance](TEST-RESULTS.md)
+
+WordPress, Ghost, Shopify Blogs, Webflow, Blogger, Wix, Drupal, Joomla and the generic custom API contract have implemented API connectors and controlled automated tests. This does not mean every installation or account can publish. The implemented browser profiles are WordPress Classic Editor (not yet live-CMS verified) and declarative custom editorial forms (verified against a real Chromium fixture). No other browser platform support is advertised.
 
 ## Workflow
 
@@ -15,7 +28,7 @@ A vanilla JavaScript publishing workspace with platform-specific connectors, Sup
 4. Preview the article, target list, website shortage, warnings and estimated schedule. Confirm editorial review and website authorization.
 5. Start the campaign. Supabase continues processing after logout or browser closure; monitor progress, errors and confirmed public URLs.
 
-The sidebar contains Dashboard, My Websites, Add Website, Create Campaign, Active Campaigns, Publishing History and Settings. The article library, team management and detailed reports remain available inside their relevant sections.
+The sidebar contains Dashboard, Websites, Add Website, New Campaign, Running Campaigns, Publishing Reports and Settings. The article library, team management and detailed reports remain available inside their relevant sections.
 
 ## Scheduling rules
 
