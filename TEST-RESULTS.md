@@ -12,16 +12,17 @@ Dedicated scope: guestpostsaas and Supabase aiolueflrpraiaqvdscp. Existing three
 | V4 database rollback suite | 24 assertions passed |
 | V5 database rollback suite | Passed: trusted enrollment, role metadata isolation, first-login fence, service-role session checks, assignment/tenant RLS, approval, suspension/reactivation, atomic smoke scheduling, duplicate launch and edited-version rejection, and private data |
 | Edge checks | All five entrypoints passed |
-| Owner sign-in | Verified in actual local V5 UI against production Auth/API |
+| Owner sign-in | Verified in the production V5 website and Auth/API |
+| Approved live employee acceptance | 9 checks passed: real Auth enrollment, forced password change, role limits, retained-JWT denial in API/REST/Storage, suspension, reactivation and fresh sign-in; the single disposable Editor remains disabled |
 | Owner article preflight | Eight saved checks; blocked for approval/destination/credential; zero live URLs |
 | Export validation | Actual eight-row evidence in CSV/XLSX/PDF; 45-row labeled publication fixture; exact links, XLSX hyperlinks/filter and CSV formula safety |
 | Production build | Passed; final CI also checks the deployed revision |
 
-Database fixtures roll back. Chromium fixture results are protocol/workflow tests, not a real third-party CMS certification. Export fixture URLs are test-only example.org values and never become owner publication records. The actual owner preflight exports contain no live publication URL.
+Database transaction fixtures roll back. The separately approved real employee test intentionally retains one disabled Editor account with an active Auth ban; no email, article, Storage object, campaign or publication was created by that test. Chromium fixture results are protocol/workflow tests, not a real third-party CMS certification. Export fixture URLs are test-only example.org values and never become owner publication records. The actual owner preflight exports contain no live publication URL.
 
 ## Remaining live acceptance
 
-- A production employee creation/password-change/suspension/retained-JWT test was rejected by automatic approval review because its real-tenant account/access mutations require an explicitly scoped disposable test account. It did not run; the transactional database checks passed.
+- After explicit approval for one disposable Editor account, the real production enrollment/password-change/suspension/reactivation test passed all nine checks. That account remains disabled, with old sessions fenced and Auth sign-in banned. No emails were sent.
 - Actual employee invitation/recovery delivery requires configured Auth email delivery and a permitted recipient.
 - CMS publication, public article URL acceptance and background publication while the dashboard is closed require a verified authorized destination and explicit approval for the exact article. Browser targets also require a production worker host.
 - Google OAuth consent/renew/revoke requires the user’s OAuth application and consent.

@@ -8,7 +8,7 @@ The workspace owner can create an Admin, SEO Manager, Editor, Publishing Operato
 
 Authorization comes from trusted profile, role and individual-permission records, never user-editable metadata. Editors see their own or assigned articles and tasks. Operators and viewers see their own or assigned campaigns/reports. Administrators can manage their permitted workspace records. API, REST RLS and Storage enforce live sessions, active accounts and first-login restrictions. Suspension, reactivation and access changes fence old sessions; a new sign-in is required. Sessions in Auth remain private behind narrow server checks.
 
-Use Team Management to invite or provision employees, update roles, review granular overrides, suspend/reactivate, request recovery mail and inspect activity. No message is sent merely by opening a form. SMTP delivery and actual employee first-login/recovery flows need live acceptance in an explicitly authorized test scope.
+Use Team Management to invite or provision employees, update roles, review granular overrides, suspend/reactivate, request recovery mail and inspect activity. No message is sent merely by opening a form. A specifically approved disposable Editor passed real enrollment, required password change, suspension/reactivation and retained-session checks, and was left disabled. Invitation and recovery email delivery still require configured SMTP and an authorized recipient.
 
 ## Content and SEO
 
