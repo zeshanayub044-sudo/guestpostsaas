@@ -1,3 +1,15 @@
+# Version 5 deployment
+
+Deploy to the existing guestpostsaas repository and dedicated aiolueflrpraiaqvdscp Supabase project. Apply migrations in filename order. The migration directory is authoritative; legacy schema.sql/hardening.sql files are historical snapshots.
+
+Deploy api, publish-worker, oauth-callback, browser-bridge and report-share with the shared TypeScript, MJS and JSON modules and deno.json. Keep the existing function-body authentication modes in config.toml. The public report route accepts a fragment token through a no-store POST and returns only a restricted snapshot.
+
+The frontend build now includes Team Management, Tasks & Tickets, Publishing Reports, SEO/version review and per-tenant provider settings. GitHub Actions runs Node, Edge and controlled Chromium publishing-recovery tests before Pages deployment. No raw article, credentials, local evidence, dependency folders or browser state should enter the public source stage.
+
+See [V5 operations](docs/V5-OPERATIONS.md). A separate production browser host, authorized target CMS, Google OAuth application and licensed provider credentials are still required for external acceptance.
+
+---
+
 # Version 4 rollout
 
 Apply the two V4 migrations only to the existing dedicated project, preserving all earlier migrations. Deploy api, publish-worker and oauth-callback with deno.json and all shared modules; pass the explicit relative import_map_path deno.json to avoid reusing a stale absolute map path. The V3 browser-bridge remains compatible. See [V4 operations and provider configuration](docs/V4-OPERATIONS.md) and [verification](TEST-RESULTS.md).

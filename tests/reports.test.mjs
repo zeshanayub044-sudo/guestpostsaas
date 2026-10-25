@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {reportCSV,safeCell,verifiedURLs} from '../src/report-exports.js';
+test('report CSV retains exact URLs and neutralizes formula cells',()=>{const csv=reportCSV([{campaign_name:'=HYPERLINK("evil")',article_title:'Line1\nLine2',published_url:'https://publisher.example.org/path?a=1&b=2',status:'verified'}]);assert.ok(csv.includes("'=HYPERLINK"));assert.ok(csv.includes('https://publisher.example.org/path?a=1&b=2'));assert.ok(csv.includes('Line1\nLine2'));assert.equal(safeCell(' \t@SUM(1)'),"' \t@SUM(1)");});
+test('copy links includes only public verified exact article URLs',()=>{assert.deepEqual(verifiedURLs([{status:'pending',published_url:'https://a.example.org/p'},{status:'verified',published_url:'https://b.example.org/p'},{status:'verified',published_url:'javascript:bad'}]),['https://b.example.org/p']);});

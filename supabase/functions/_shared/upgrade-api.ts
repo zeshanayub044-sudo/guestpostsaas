@@ -2,12 +2,13 @@ import {db,rpc,text,uuid,integer,canonicalURL} from './core.ts';
 import {discover,connectWebsite,testConnection} from './connections.ts';
 import {binding} from './connectors.ts';
 import {campaignPlan,startCampaign} from './campaigns.ts';
+import {can} from './authorization.ts';
 
 export const upgradeActions=new Set(['website.discover','website.connect','website.save','website.test','website.import','campaign.preview','campaign.start','campaign.create','oauth.google.begin']);
 export async function upgradeAction(actor:any,action:string,b:any){
-  const admin=['admin','super_admin'].includes(actor.role),service=db();
+  const admin=can(actor,action==='website.save'?'websites.update':action==='website.import'?'websites.create':'websites.connect'),service=db();
   if(action.startsWith('website.')||action.startsWith('oauth.')){if(!admin)throw new Error('Administrator permission required.');}
-  else if(!admin&&!actor.can_publish)throw new Error('Publishing permission required.');
+  else if(!can(actor,action==='campaign.preview'?'campaigns.create':'campaigns.launch'))throw new Error('Publishing permission required.');
   const own=async(id:unknown)=>{const{data}=await service.from('websites').select('*').eq('id',uuid(id)).eq('tenant_id',actor.tenant_id).single();if(!data)throw new Error('Website not found in your workspace.');return data;};
   let result:any;
   if(action==='website.discover')return discover(b.website_url);
@@ -36,6 +37,6 @@ export async function upgradeAction(actor:any,action:string,b:any){
     await rpc('begin_google_connection',{p_actor:actor.id,p_website:site.id,p_state:state,p_verifier:verifier});
     const url=new URL('https://accounts.google.com/o/oauth2/v2/auth');url.search=new URLSearchParams({client_id:client,redirect_uri:Deno.env.get('SUPABASE_URL')+'/functions/v1/oauth-callback',response_type:'code',scope:'https://www.googleapis.com/auth/blogger',access_type:'offline',prompt:'consent',state,code_challenge:challenge,code_challenge_method:'S256'}).toString();return {url:url.href};
   }
-  await service.from('publishing_logs').insert({tenant_id:actor.tenant_id,event_type:action.replaceAll('.','_'),message:action.startsWith('website.')?'Website connection details updated.':'Publishing campaign confirmed and scheduled.'});
+  await service.from('publishing_logs').insert({tenant_id:actor.tenant_id,actor_id:actor.id,event_type:action.replaceAll('.','_'),message:action.startsWith('website.')?'Website connection details updated.':'Publishing campaign confirmed and scheduled.'});
   return result;
 }

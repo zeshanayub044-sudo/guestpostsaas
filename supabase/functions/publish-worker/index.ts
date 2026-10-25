@@ -1,3 +1,4 @@
+import {processReportVerification} from '../_shared/reporting.ts';
 import {rpc} from '../_shared/core.ts';
 import {connector} from '../_shared/registry.ts';
 import {binding} from '../_shared/connectors.ts';
@@ -11,8 +12,9 @@ Deno.serve(async req=>{
   await rpc('monitor_browser_connections');
   // Durable inventory discovery is independent of publication and never receives credentials.
   const discovery=await processDiscovery();
+  const verification=await processReportVerification();
   const claimed=await rpc('claim_next_job');
-  if(!claimed)return Response.json({processed:0,discovery});
+  if(!claimed)return Response.json({processed:0,discovery,verification});
   const {job,campaign,website}=claimed;
   let result;
   try{

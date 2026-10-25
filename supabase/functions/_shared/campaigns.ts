@@ -1,3 +1,4 @@
+import {requirePermission} from './authorization.ts';
 import {db,rpc,articleData,text,integer,uuid,canonicalURL} from './core.ts';
 import {wixRichContent} from './additional-connectors.ts';
 import catalog from './catalog.json' with {type:'json'};
@@ -17,7 +18,7 @@ export async function campaignPlan(actor:any,b:any){
   const quantity=integer(b.quantity??b.website_ids?.length,1,500),interval=integer(b.interval??300,300,86400);
   const mode=['auto','manual','category'].includes(b.mode)?b.mode:'auto';
   let article:any;
-  if(b.article_id){const {data,error}=await db().from('articles').select('*').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).single();if(error||!data)throw new Error('The selected article could not be loaded from this workspace. Refresh the article list.');if(b.article_updated_at&&b.article_updated_at!==data.updated_at)throw new Error('The selected article changed. Refresh and review it again.');article=data;}
+  if(b.article_id){const {data,error}=await db().from('articles').select('*').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).is('archived_at',null).single();if(error||!data)throw new Error('The selected article could not be loaded from this workspace. Refresh the article list.');if(b.article_updated_at&&b.article_updated_at!==data.updated_at)throw new Error('The selected article changed. Refresh and review it again.');article=data;}
   else article=articleData(b.article??{});
   if(!article.content.replace(/<[^>]*>/g,'').trim()&&!article.content.includes('<img'))throw new Error('Add article content before creating a campaign.');
   if(article.featured_image){const u=canonicalURL(article.featured_image);if(u.origin!==new URL(Deno.env.get('SUPABASE_URL')!).origin||!u.pathname.startsWith('/storage/v1/object/public/article-images/'+actor.tenant_id+'/'))throw new Error('Upload the featured image to this workspace.');}
@@ -58,8 +59,9 @@ export async function campaignPlan(actor:any,b:any){
 export async function startCampaign(actor:any,b:any){
   if(!b.editorial_approved||!b.authorized)throw new Error('Review the article, variants and selected websites before starting.');
   const plan=await campaignPlan(actor,b);
+  if(plan.article.status!=='approved'){requirePermission(actor,'articles.approve');requirePermission(actor,'campaigns.approve');}
   if(plan.shortage)throw new Error(`Only ${plan.eligible_count} eligible websites are available for ${plan.quantity} publications. Reduce the quantity or connect more websites.`);
   const args={p_actor:actor.id,p_name:text(b.campaign_name||plan.article.title,200,true),p_sites:plan.targets.map(w=>w.id),p_interval:plan.interval,p_start:plan.start_time,p_overrides:plan.overrides};
-  const id=b.article_id?await rpc('approve_and_create_campaign',{...args,p_article:uuid(b.article_id),p_version:b.article_updated_at||plan.article.updated_at,p_mode:plan.mode}):await rpc('create_inline_campaign',{...args,p_article:plan.article,p_mode:plan.mode});
+  const id=b.article_id?await rpc('start_attributed_campaign',{...args,p_article:uuid(b.article_id),p_version:b.article_updated_at||plan.article.updated_at,p_mode:plan.mode,p_attribution:{assigned_to:b.assigned_to||null,client_name:text(b.client_name,200),project_name:text(b.project_name,200),report_recipient:text(b.report_recipient,254),smoke_run_id:b._smoke_run_id||null}}):await rpc('create_inline_campaign',{...args,p_article:plan.article,p_mode:plan.mode});
   return {id,first_at:plan.first_at,last_at:plan.last_at,total:plan.quantity};
 }

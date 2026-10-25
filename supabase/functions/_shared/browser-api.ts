@@ -1,11 +1,12 @@
 import {db,rpc,text,uuid,canonicalURL} from './core.ts';
 import {binding} from './connectors.ts';
 import {failure,browserAdapters} from './browser-contract.mjs';
+import {requirePermission} from './authorization.ts';
 
 export async function sha256(value:string){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(v=>v.toString(16).padStart(2,'0')).join('');}
 export const browserActions=new Set(['worker.register','worker.status','worker.revoke']);
 export async function browserAction(actor:any,action:string,b:any){
-  if(!['admin','super_admin'].includes(actor.role))throw new Error('Administrator permission required.');
+  requirePermission(actor,'settings.manage');
   if(action==='worker.status'){const {data,error}=await db().from('browser_workers').select('id,name,active,last_seen_at,version').eq('tenant_id',actor.tenant_id);if(error)throw new Error('Worker status unavailable.');return {workers:data};}
   if(action==='worker.register'){
     const token=[...crypto.getRandomValues(new Uint8Array(48))].map(v=>v.toString(16).padStart(2,'0')).join('');

@@ -1,7 +1,7 @@
 import {mkdir,cp,readFile,readdir,stat,writeFile,rm} from 'node:fs/promises';
 import {resolve,join,relative,sep} from 'node:path';
 import {createHash} from 'node:crypto';
-const root=resolve('.'),stage=join(root,'.local','release-source-v4');
+const root=resolve('.'),stage=join(root,'.local','release-source-v5');
 if(!stage.startsWith(join(root,'.local')+sep)||stage===root)throw new Error('Unsafe staging directory.');
 await rm(stage,{recursive:true,force:true});
 await mkdir(stage,{recursive:true});

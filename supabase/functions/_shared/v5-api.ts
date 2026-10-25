@@ -1,0 +1,56 @@
+import {db,uuid,text} from './core.ts';
+import {can,requirePermission,ownCampaign,auditActor} from './authorization.ts';
+import {reportActions,reportAction} from './reporting.ts';
+import {seoActions,seoAction} from './seo.ts';
+import {providerActions,providerAction} from './providers.ts';
+import {publisherActions,publisherAction} from './publishers.ts';
+import {startCampaign} from './campaigns.ts';
+import {binding} from './connectors.ts';
+import {rpc} from './core.ts';
+const otherActions=['task.assignees','task.list','task.save','smoke.preflight','smoke.launch','smoke.results','campaign.start','campaign.create','campaign.assign'];
+export const v5Actions=new Set([...reportActions,...seoActions,...providerActions,...publisherActions,...otherActions]);
+export async function v5Action(actor:any,action:string,b:any){
+ if(reportActions.has(action))return reportAction(actor,action,b);
+ if(seoActions.has(action))return seoAction(actor,action,b);
+ if(providerActions.has(action))return providerAction(actor,action,b);
+ if(publisherActions.has(action))return publisherAction(actor,action,b);
+ const service=db();
+ if(['campaign.start','campaign.create'].includes(action))return startCampaign(actor,b);
+ if(action==='campaign.assign'){
+  requirePermission(actor,'tasks.manage');const campaign=await ownCampaign(actor,b.id),id=b.assigned_to?uuid(b.assigned_to):null;
+  if(id){const {data:p}=await service.from('profiles').select('id').eq('id',id).eq('tenant_id',actor.tenant_id).eq('active',true).single();if(!p)throw new Error('Choose an active workspace employee.');}
+  const {error}=await service.from('campaigns').update({assigned_to:id,client_name:text(b.client_name,200),project_name:text(b.project_name,200),report_recipient:text(b.report_recipient,254)}).eq('id',campaign.id);if(error)throw new Error('Campaign attribution could not be saved.');await auditActor(actor,'campaign_assigned','Campaign employee/client attribution updated.');return {ok:true};
+ }
+ if(action==='task.assignees'){requirePermission(actor,'tasks.manage');const {data,error}=await service.from('profiles').select('id,full_name,department').eq('tenant_id',actor.tenant_id).eq('active',true);if(error)throw new Error('Employee assignment names could not be loaded.');return {people:data};}
+ if(action==='task.list'){
+  requirePermission(actor,'tasks.read');let q=service.from('tasks').select('*').eq('tenant_id',actor.tenant_id).order('created_at',{ascending:false}).limit(500);if(!can(actor,'tasks.manage'))q=q.or('assigned_to.eq.'+actor.id+',created_by.eq.'+actor.id);const {data,error}=await q;if(error)throw new Error('Employee tasks could not be loaded.');return {tasks:data};
+ }
+ if(action==='task.save'){
+  const id=b.id?uuid(b.id):crypto.randomUUID();let current:any;if(b.id){const {data}=await service.from('tasks').select('*').eq('id',id).eq('tenant_id',actor.tenant_id).single();current=data;if(!data)throw new Error('Task not found.');}
+  let payload:any;
+  if(can(actor,'tasks.manage')){
+   const assigned=b.assigned_to?uuid(b.assigned_to):null;if(assigned){const {data:p}=await service.from('profiles').select('id').eq('id',assigned).eq('tenant_id',actor.tenant_id).eq('active',true).single();if(!p)throw new Error('Choose an active workspace employee.');}
+   if(b.article_id){const {data:a}=await service.from('articles').select('id').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).single();if(!a)throw new Error('Choose an article in this workspace.');}
+   if(b.campaign_id)await ownCampaign(actor,b.campaign_id);const due=b.due_at?new Date(b.due_at):null;if(due&&!Number.isFinite(due.getTime()))throw new Error('Choose a valid due date.');
+   payload={title:text(b.title,200,true),assigned_to:assigned,article_id:b.article_id?uuid(b.article_id):null,campaign_id:b.campaign_id?uuid(b.campaign_id):null,priority:['low','normal','high','urgent'].includes(b.priority)?b.priority:'normal',due_at:due?.toISOString()||null,notes:text(b.notes,10000)};
+  }else{requirePermission(actor,'tasks.read');if(!current||current.assigned_to!==actor.id)throw new Error('Only your assigned tasks can be updated.');payload={notes:text(b.notes??current.notes,10000)};}
+  if(!['todo','in_progress','waiting','completed'].includes(b.status))throw new Error('Choose a supported task status.');payload={...payload,status:b.status,completed_at:b.status==='completed'?new Date().toISOString():null,updated_at:new Date().toISOString()};
+  const result=b.id?await service.from('tasks').update(payload).eq('id',id):await service.from('tasks').insert({...payload,id,tenant_id:actor.tenant_id,created_by:actor.id});if(result.error)throw new Error('Task could not be saved.');await auditActor(actor,b.id?'task_updated':'task_created','Employee task '+b.status+'.');return {id};
+ }
+ if(action==='smoke.results'){
+  requirePermission(actor,'campaigns.view');const {data:run}=await service.from('smoke_test_runs').select('*').eq('id',uuid(b.id)).eq('tenant_id',actor.tenant_id).single();if(!run||!can(actor,'campaigns.read_all')&&run.initiated_by!==actor.id)throw new Error('Smoke-test run not found.');const {data:steps,error}=await service.from('smoke_test_steps').select('*').eq('run_id',run.id).eq('tenant_id',actor.tenant_id).order('verified_at');if(error)throw new Error('Smoke-test evidence could not be loaded.');return {run,steps};
+ }
+ if(action==='smoke.preflight'){
+  requirePermission(actor,'campaigns.create');const {data:article}=await service.from('articles').select('*').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).is('archived_at',null).single();if(!article||!can(actor,'articles.read_all')&&article.owner_id!==actor.id&&article.assigned_to!==actor.id&&article.status!=='approved')throw new Error('Choose a permitted saved article.');
+  const {data:sites}=await service.from('websites').select('*').eq('tenant_id',actor.tenant_id).eq('status','active').eq('connection_status','connected').eq('permission_status','verified');const {data:workers}=await service.from('browser_workers').select('active,last_seen_at').eq('tenant_id',actor.tenant_id).eq('active',true);const online=(workers||[]).some((w:any)=>Date.parse(w.last_seen_at)>Date.now()-120000);
+  const selected=b.website_id?sites?.find((w:any)=>w.id===uuid(b.website_id)):sites?.find((w:any)=>w.connection_method!=='browser'||online);let credential=false;if(selected){const c=await rpc('read_credentials',{p_website:selected.id});credential=!!c&&c.connection_key===binding(selected);}
+  const runtime=await rpc('publishing_runtime_status');
+  const steps=[{test_name:'Background scheduler',expected_result:'Publishing Cron is active',actual_result:runtime.scheduler_active?'Active scheduler: '+runtime.schedule:'Publishing scheduler is inactive',status:runtime.scheduler_active?'passed':'blocked',error_code:runtime.scheduler_active?null:'scheduler_inactive',corrective_action:'Enable the publishing scheduler for the dedicated workspace project.'},{test_name:'Authentication',expected_result:'Active authenticated workspace account',actual_result:'Authenticated live account and session checked by API',status:'passed'},{test_name:'Article storage',expected_result:'Owner-supplied content saved with a traceable original',actual_result:'Saved article '+article.id,status:'passed'},{test_name:'Editorial approval',expected_result:'Exact current version explicitly approved',actual_result:article.status==='approved'&&article.approved_version_id?'Approved version '+article.approved_version_id:'Article is an unapproved draft; review and approval are still required',status:article.status==='approved'&&article.approved_version_id?'passed':'blocked',error_code:article.status==='approved'?null:'editorial_approval_required',corrective_action:'Review the source and proposed article, then explicitly approve the selected version.'},{test_name:'Publishing destination',expected_result:'One authorized connection with verified create/publish permission',actual_result:selected?'Verified connection '+selected.website_url:'No verified authorized publishing destination is available',status:selected?'passed':'blocked',error_code:selected?null:'authorized_destination_missing',corrective_action:'Connect the publisher’s supported credential and verify its create/publish rights.'},{test_name:'Destination credential',expected_result:'Encrypted credential bound to the selected connection',actual_result:credential?'Bound encrypted credential found':'No usable destination credential is available',status:credential?'passed':'blocked',error_code:credential?null:'publisher_credential_missing',corrective_action:'Save a dedicated publishing credential through My Websites.'},{test_name:'Browser worker',expected_result:'Online worker when using a browser connector',actual_result:selected?.connection_method!=='browser'?'No browser connection selected; a browser host is not needed for a native API target':online?'Worker heartbeat is current':'No production browser worker is online',status:selected?.connection_method!=='browser'||online?'passed':'blocked',error_code:selected?.connection_method==='browser'&&!online?'browser_worker_offline':null,corrective_action:'Deploy the separate Node/Playwright service on an authorized host and enroll it.'},{test_name:'External publication',expected_result:'Explicit approval and a real verified destination before dispatch',actual_result:'No publication attempted during preflight',status:'blocked',error_code:'publication_not_authorized',corrective_action:'Complete preflight, review the exact target, and explicitly authorize the smoke-test launch.'}];
+  const ready=runtime.scheduler_active&&!!selected&&credential&&article.status==='approved'&&!!article.approved_version_id&&(selected.connection_method!=='browser'||online);const id=crypto.randomUUID();const {error}=await service.from('smoke_test_runs').insert({id,tenant_id:actor.tenant_id,initiated_by:actor.id,article_id:article.id,target_website_id:selected?.id||null,reviewed_version_id:article.current_version_id,status:ready?'awaiting_approval':'blocked'});if(error)throw new Error('Preflight run could not be saved.');const {error:stepError}=await service.from('smoke_test_steps').insert(steps.map(s=>({...s,tenant_id:actor.tenant_id,run_id:id,log_reference:id})));if(stepError)throw new Error('Preflight details could not be saved.');await auditActor(actor,'smoke_preflight','Publishing preflight recorded; no external content was published.');return {id,ready,steps,destination:selected?.website_url||null};
+ }
+ if(action==='smoke.launch'){
+  requirePermission(actor,'campaigns.launch');if(b.publication_approved!==true)throw new Error('Explicitly approve publication to the displayed destination first.');const {data:run}=await service.from('smoke_test_runs').select('*').eq('id',uuid(b.id)).eq('tenant_id',actor.tenant_id).eq('status','awaiting_approval').single();if(!run||run.initiated_by!==actor.id)throw new Error('Complete a ready preflight for this account before launching.');
+  const result=await startCampaign(actor,{article_id:run.article_id,_smoke_run_id:run.id,quantity:1,mode:'manual',website_ids:[run.target_website_id],interval:300,campaign_name:'Approved smoke test '+run.id.slice(0,8),editorial_approved:true,authorized:true});return result;
+ }
+ throw new Error('Unknown V5 operation.');
+}

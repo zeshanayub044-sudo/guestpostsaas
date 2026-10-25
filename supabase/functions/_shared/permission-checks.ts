@@ -1,8 +1,9 @@
 import {db,rpc,uuid} from './core.ts';
 import {binding} from './connectors.ts';
 import {request,RemoteError} from './network.ts';
+import {requirePermission} from './authorization.ts';
 export async function verifyWixPermissions(actor:any,b:any){
-  if(!['admin','super_admin'].includes(actor.role))throw new Error('Administrator permission required.');
+  requirePermission(actor,'websites.connect');
   if(b.authorized_draft_check!==true)throw new Error('Approve creating and removing one unpublished Wix test draft. No public article will be published.');
   const service=db(),{data:site}=await service.from('websites').select('*').eq('id',uuid(b.id)).eq('tenant_id',actor.tenant_id).single();
   if(!site||site.cms_type!=='wix'||site.connection_method!=='api')throw new Error('Choose a Wix API connection.');

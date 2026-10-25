@@ -3,10 +3,11 @@ import {importInventory,retryDiscovery} from './inventory.ts';
 import {request} from './network.ts';
 import catalog from './catalog.json' with {type:'json'};
 import {verifyWixPermissions} from './permission-checks.ts';
+import {can} from './authorization.ts';
 
 export const v4Actions=new Set(['website.import','website.options','website.verify_permissions','import.retry','connector.registry','integration.google.status','integration.google.begin','integration.google.revoke','integration.google.refresh','quality.save','metrics.record','website.discover.saved']);
 export async function v4Action(actor:any,action:string,b:any){
-  const service=db(),admin=['admin','super_admin'].includes(actor.role);
+  const service=db(),admin=can(actor,['website.import','import.retry'].includes(action)?'websites.create':action==='quality.save'?'settings.manage':action==='metrics.record'?'publishers.research':'websites.connect');
   if(!action.startsWith('integration.')&&action!=='connector.registry'&&!admin)throw new Error('Administrator permission required.');
   const ownSite=async()=>{const {data,error}=await service.from('websites').select('*').eq('id',uuid(b.id)).eq('tenant_id',actor.tenant_id).single();if(error||!data)throw new Error('Website not found in this workspace.');return data;};
   if(action==='website.import')return importInventory(actor,b);

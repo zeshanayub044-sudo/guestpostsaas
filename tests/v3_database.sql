@@ -63,7 +63,7 @@ begin
   if public.finish_browser_check(wid,checkid,(checkrow->>'lease_token')::uuid,true,'','Old credential result') then raise exception 'Stale connection version was accepted'; end if;
   if has_table_privilege('authenticated','private.website_credentials','SELECT') or has_table_privilege('authenticated','private.browser_worker_keys','SELECT') then raise exception 'Frontend can read credentials'; end if;
   if has_function_privilege('authenticated','public.read_credentials(uuid)','EXECUTE') or has_function_privilege('authenticated','public.claim_next_job(text,uuid)','EXECUTE') or has_function_privilege('anon','public.authenticate_browser_worker(text,text)','EXECUTE') then raise exception 'Public worker RPC exposure'; end if;
-  perform set_config('request.jwt.claims',jsonb_build_object('sub',uid,'role','authenticated')::text,true);
+  insert into auth.sessions(id,user_id,created_at,updated_at) values(uid,uid,clock_timestamp(),clock_timestamp());perform set_config('request.jwt.claims',jsonb_build_object('sub',uid,'session_id',uid,'role','authenticated')::text,true);
   set local role authenticated;
   if (select count(*) from public.websites)<>201 then raise exception 'Tenant RLS leaked or hid websites'; end if;
   reset role;

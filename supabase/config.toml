@@ -9,3 +9,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.browser-bridge]
 verify_jwt = false
+
+[functions.report-share]
+verify_jwt = false

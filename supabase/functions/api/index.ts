@@ -1,6 +1,9 @@
 import {upgradeActions,upgradeAction} from '../_shared/upgrade-api.ts';
 import {browserActions,browserAction} from '../_shared/browser-api.ts';
 import {v4Actions,v4Action} from '../_shared/v4-api.ts';
+import {authorizeAction,permissionsFor,can,actionPermissions} from '../_shared/authorization.ts';
+import {teamActions,teamAction} from '../_shared/team.ts';
+import {v5Actions,v5Action} from '../_shared/v5-api.ts';
 import {db,rpc,articleData,canonicalURL,text,integer,uuid} from '../_shared/core.ts';
 import {WordPress} from '../_shared/wordpress.ts';
 import {RemoteError,request} from '../_shared/network.ts';
@@ -16,15 +19,26 @@ async function execute(req:Request){
   if(!await rpc('consume_api_rate',{p_actor:actor.id}))return {status:429,body:{error:'Too many requests. Wait one minute and retry.',code:'rate_limited',component:'api',retryable:true,timestamp:new Date().toISOString()}};
   const raw=await req.text();if(raw.length>700000)throw new Error('Request exceeds the size limit.');
   const {action,data:b={}}=JSON.parse(raw);
+  let sessionId;try{sessionId=JSON.parse(atob(authorization.replace(/^Bearer /i,'').split('.')[1].replaceAll('-','+').replaceAll('_','/'))).session_id;}catch{return {status:401,body:{error:'A valid account session is required.'}};}
+  const passwordFlow=['account.context','account.change_password'].includes(action);
+  if(!sessionId||!await rpc('validate_actor_session',{p_actor:actor.id,p_session:uuid(sessionId),p_password_flow:passwordFlow}))return {status:403,body:{error:actor.password_change_required?'Change your temporary password before accessing the workspace.':'This session was revoked. Sign in again.',code:'session_access_blocked'}};
+  actor.permissions=await permissionsFor(actor);
+  if(action==='account.context')await rpc('record_signin_activity',{p_actor:actor.id,p_session:uuid(sessionId)});
+  if(actor.password_change_required&&!passwordFlow)return {status:403,body:{error:'A private password is required before workspace access.',code:'password_change_required'}};
+  await authorizeAction(actor,action,b);
+  if(action==='user.invite')return {status:200,body:await teamAction(actor,'team.create',{...b,full_name:b.full_name||b.email,authentication:'invitation'})};
+  if(action==='user.update')return {status:200,body:await teamAction(actor,'team.update',b)};
+  if(teamActions.has(action))return {status:200,body:await teamAction(actor,action,b)};
+  if(v5Actions.has(action))return {status:200,body:await v5Action(actor,action,b)};
   if(v4Actions.has(action))return {status:200,body:await v4Action(actor,action,b)};
   if(browserActions.has(action))return {status:200,body:await browserAction(actor,action,b)};
   if(upgradeActions.has(action))return {status:200,body:await upgradeAction(actor,action,b)};
-  const admin=actor.role==='super_admin'||actor.role==='admin';
+  const admin=can(actor,'websites.update');
   const publisher=admin||actor.can_publish;
-  const requireAdmin=()=>{if(!admin)throw new Error('Administrator permission required.');};
+  const requireAdmin=()=>{if(!can(actor,actionPermissions[action]||'settings.manage'))throw new Error('Administrator permission required.');};
   const requirePublisher=()=>{if(!publisher)throw new Error('Publishing permission required.');};
   const own=async(table:string,id:unknown)=>{const{data,error}=await service.from(table).select('*').eq('id',uuid(id)).eq('tenant_id',actor.tenant_id).single();if(error||!data)throw new Error('Record not found in your workspace.');return data;};
-  const audit=async(event:string,message:string)=>{const {error}=await service.from('publishing_logs').insert({tenant_id:actor.tenant_id,event_type:event,message});if(error)throw new Error('Audit log could not be saved.');};
+  const audit=async(event:string,message:string)=>{const {error}=await service.from('publishing_logs').insert({tenant_id:actor.tenant_id,actor_id:actor.id,event_type:event,message});if(error)throw new Error('Audit log could not be saved.');};
   let output:any={ok:true};
   switch(action){
     case 'system.health':{

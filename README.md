@@ -1,4 +1,5 @@
-# GuestPost Universal — Version 3
+# GuestPost Universal - Version 5
+
 
 A vanilla JavaScript publishing workspace with platform-specific connectors, Supabase Auth, encrypted credentials and a persistent sequential publishing queue.
 
@@ -114,3 +115,7 @@ The Pages workflow installs dependencies, runs frontend and Edge tests, builds r
 ## Operations requiring owner setup
 
 Connect authorized CMS accounts, configure Google OAuth if using Blogger, and configure production SMTP for reliable email onboarding. Configure backups and availability appropriate to the Supabase plan. The current Free plan does not include leaked-password protection, which Supabase documents as Pro or above. No paid resource, unrelated repository or unrelated Supabase project is changed by this upgrade.
+
+## Version 5 workspace
+
+Publication reports and selected client shares, real Auth employee provisioning with live-session fences, assigned tasks, original/versioned article review, tenant-configured SEO generation, real publisher guideline research and evidence-based publishing preflight are implemented. Provider credentials and external publishing infrastructure must be configured for their live acceptance. See [V5 operations and limitations](docs/V5-OPERATIONS.md) and [current verification](TEST-RESULTS.md).

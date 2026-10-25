@@ -1,6 +1,6 @@
 {
   "name": "guest-post-saas",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,13 +8,15 @@
     "build": "vite build --base=./",
     "preview": "vite preview --host 127.0.0.1",
     "test": "node --test tests/*.test.mjs",
-    "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts supabase/functions/browser-bridge/index.ts",
+    "check:edge": "deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts supabase/functions/browser-bridge/index.ts supabase/functions/report-share/index.ts",
     "test:browser": "npm --prefix browser-worker test",
-    "test:edge": "deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts tests/v3_edge_test.ts tests/v4_edge_test.ts"
+    "test:edge": "deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts tests/v3_edge_test.ts tests/v4_edge_test.ts tests/v5_edge_test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.95.3",
     "dompurify": "3.4.17",
+    "jspdf": "4.2.1",
+    "jspdf-autotable": "5.0.9",
     "lucide": "0.468.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
