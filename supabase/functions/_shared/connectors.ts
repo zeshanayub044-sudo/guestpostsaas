@@ -1,6 +1,7 @@
 import {request,RemoteError} from './network.ts';
 import {rpc,canonicalURL,cleanHTML,text} from './core.ts';
 import {WordPress} from './wordpress.ts';
+import {permissionBridge} from './capabilities.ts';
 
 export type Website={id:string;website_url:string;api_endpoint:string;cms_type:string;connector_config:Record<string,any>;connection_method?:string;connection_version?:number};
 export type Credential=Record<string,any>;
@@ -43,7 +44,7 @@ export async function ghostToken(key:string,now=Date.now()){
 }
 export class Ghost extends Base {
   private async call(path:string,method='GET',body?:any){return this.http(path,method,{Authorization:'Ghost '+await ghostToken(this.credentials.password,this.rt.now()),'Accept-Version':'v5.0'},body);}
-  async test(){await this.call('/posts/?limit=1&fields=id,title,status');return {account:'Ghost custom integration',permission_status:'credential_verified',message:'Admin integration connected. Publishing permission is checked again when a job runs.'};}
+  async test(){const {data}=await this.call('/posts/?limit=1&fields=id,title,status');if(!Array.isArray(data?.posts))throw new RemoteError('The website did not return a Ghost Admin posts response.',400);const verified=await permissionBridge(this.site,{Authorization:'Ghost '+await ghostToken(this.credentials.password,this.rt.now())},this.rt);return verified||{account:'Ghost Admin credential',permission_status:'credential_verified',message:'Ghost Admin read access verified. Configure a same-site capability bridge that verifies this key can create and publish; a role-limited staff key must not qualify from reading posts alone.'};}
   async publish(job:any,a:any){
     let id=job.remote_post_id;
     if(!id&&(job.remote_attempt_started||job.needs_reconciliation)){
@@ -108,7 +109,18 @@ export class Webflow extends Base {
     if(!data.fields?.some((f:any)=>f.slug===c.body_field&&f.type==='RichText'))throw new RemoteError('Choose the collection field that stores the article’s rich text.',400);
     const known=new Set(['name','slug',c.body_field,c.image_field,c.meta_title_field,c.meta_description_field,c.canonical_field,...Object.keys(c.required_fields??{})]);
     if(data.fields.some((f:any)=>f.isRequired&&!known.has(f.slug)))throw new RemoteError('This collection has additional required fields. Add their values in advanced connection settings.',400);
-    return {account:data.displayName||data.slug,permission_status:'credential_verified',message:'Collection and content field verified. Token must include CMS write permission; publication is checked at dispatch.'};
+    let introspection:any;try{introspection=(await this.call('/token/introspect')).data;}catch(e){if(!(e instanceof RemoteError&&e.status===403))throw e;}
+    const scopes=String(introspection?.authorization?.scope||'').split(/[ ,]+/);
+    if(scopes.includes('cms:write')&&scopes.includes('cms:read')){
+      const siteId=c.site_id||data.siteId;if(!siteId)return {account:data.displayName||data.slug,permission_status:'credential_verified',message:'CMS write scope verified. Choose the Webflow site to verify this collection belongs to the connected domain.'};
+      const site=(await this.call('/sites/'+segment(siteId))).data;
+      const domains=[...(site.customDomains||[]).map((d:any)=>d.url||d.name),site.shortName?site.shortName+'.webflow.io':null].filter(Boolean).map((d:any)=>String(d).replace(/^https?:\/\//,'').replace(/\/$/,''));
+      if(!domains.includes(new URL(this.site.website_url).hostname))throw new RemoteError('The collection’s Webflow site does not match this website domain.',400);
+      const list=(await this.call('/sites/'+segment(siteId)+'/collections')).data;
+      if(!list.collections?.some((x:any)=>x.id===c.collection_id))throw new RemoteError('The collection does not belong to the selected Webflow site.',400);
+      return {account:data.displayName||data.slug,permission_status:'verified',message:'Webflow CMS read/write scopes, website domain and collection ownership verified.'};
+    }
+    return {account:data.displayName||data.slug,permission_status:'credential_verified',message:'Collection access verified. CMS write scope could not be verified. Reissue a token with cms:read, cms:write and sites:read; select its site and collection.'};
   }
   async publish(job:any,a:any){
     const c=this.site.connector_config,path='/collections/'+segment(c.collection_id)+'/items';let id=job.remote_post_id;

@@ -13,7 +13,7 @@ export class WordPress {
   }
   async test(){
     const {data}=await this.request(this.endpoint+'/users/me?context=edit','GET',this.headers);
-    if(!data?.capabilities?.publish_posts)throw new RemoteError('This WordPress account does not have permission to publish posts.',403);
+    if(!data?.capabilities?.publish_posts||!data?.capabilities?.edit_posts)throw new RemoteError('This WordPress account needs permission to create, edit and publish posts.',403);
     return {account:String(data.name??data.slug),id:data.id,permission_status:'verified',message:'WordPress account and publishing permission verified.'};
   }
   async terms(taxonomy:string,names:string[]):Promise<number[]>{

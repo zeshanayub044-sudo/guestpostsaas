@@ -1,0 +1,9 @@
+name: GuestPost publishing permissions
+type: module
+description: Authenticated read-only publishing capability checks for GuestPost.
+core_version_requirement: ^10 || ^11
+package: Web services
+dependencies:
+  - drupal:node
+  - drupal:basic_auth
+  - drupal:jsonapi

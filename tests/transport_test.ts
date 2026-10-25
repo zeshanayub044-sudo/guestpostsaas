@@ -22,3 +22,4 @@ Deno.test('Redirects are refused and truncated create responses remain uncertain
 Deno.test('Private DNS answers are blocked before any socket is opened',async()=>{
   await mock('',async observed=>{let caught=false;try{await request('https://wordpress.com/api');}catch{caught=true;}assert(caught);assert(observed.connect===null);},['169.254.169.254']);
 });
+Deno.test('successful empty cleanup responses are accepted without JSON decoding',async()=>{await mock('HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n',async()=>{const result=await request('https://wordpress.com/api/draft','DELETE');assert(result.status===204);assert(result.data===null);});});

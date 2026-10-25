@@ -1,11 +1,18 @@
-import {connectionLabel} from '../supabase/functions/_shared/browser-contract.mjs';
-export {connectionLabel};
+import catalog from '../supabase/functions/_shared/catalog.json' with {type:'json'};
+export function connectionLabel(site){
+  if(site.connection_status==='connected'&&site.permission_status!=='verified')return 'Publishing Permission Missing';
+  if(site.connection_method==='browser'&&site.worker_online===false)return 'Connector Configuration Required';
+  return ({connected:'Ready for Publishing',authorization_required:'Authentication Required',setup_required:'Connector Configuration Required',checking:'Authentication Required',error:'Connection Failed',limited:'Publishing Permission Missing',revoked:'Authentication Required',untested:'Connector Configuration Required',manual:'Connector Configuration Required',unsupported:'Unsupported Automation'})[site.connection_status]||'Connector Configuration Required';
+}
 export function workerOnline(workers=[]){return workers.some(w=>w.active&&Date.parse(w.last_seen_at)>Date.now()-120000);}
-export function automaticallyEligible(site,workers=[]){return site.status==='active'&&site.connection_status==='connected'&&site.cms_type!=='manual'&&(site.connection_method!=='browser'||workerOnline(workers));}
+export function automaticallyEligible(site,workers=[]){return site.status==='active'&&site.connection_status==='connected'&&site.permission_status==='verified'&&site.cms_type!=='manual'&&(site.connection_method!=='browser'||workerOnline(workers));}
 export function connectionReport(site,esc){
   const report=site.connection_report||site.report||{};
+  const platform=site.cms_type||site.platform,provider=catalog.find(p=>p.id===platform),status=site.connection_status||site.status;
+  const code=site.connection_method==='browser'&&site.worker_online===false?'browser_worker_unavailable':status==='connected'&&site.permission_status!=='verified'?'publishing_permission_unverified':({authorization_required:'authentication_required',setup_required:'connector_configuration_missing',error:'connection_failed',limited:'publishing_permission_missing',checking:'verification_pending',untested:'discovery_required'})[status]||status;
+  const action=code==='browser_worker_unavailable'?'Open Settings → Manage browser workers. Deploy and connect a worker before this website can receive jobs.':site.connection_message||site.message||report.recommended_action||provider?.guide||'Ask the website owner for its supported publishing integration and permission to publish.';
   const row=(name,value)=>`<div><dt>${esc(name)}</dt><dd>${esc(String(value||'Not checked').replaceAll('_',' '))}</dd></div>`;
-  return `<section class="connection-report"><h3>Website Connection Report</h3><dl>${row('Website',site.website_url||'')}${row('CMS detected',site.cms_type||site.platform||'Unknown')}${row('Native API',report.native_api)}${row('Platform connector',report.platform_connector)}${row('Permitted browser workflow',report.browser_workflow)}${row('Publishing status',connectionLabel({connection_status:site.connection_status||site.status,connection_method:site.connection_method}))}</dl><p>${esc(site.connection_message||site.message||report.recommended_action||'Configure and verify an authorized publishing workflow.')}</p></section>`;
+  return `<section class="connection-report"><h3>Website Connection Report</h3><dl>${row('Website',site.website_url||'')}${row('CMS detected',platform||'Unknown')}${row('Connector',provider?.name||'Destination-specific connector')}${row('Authentication',provider?.authentication)}${row('Native API',report.native_api)}${row('Platform connector',report.platform_connector)}${row('Permitted browser workflow',report.browser_workflow)}${row('Publishing status',connectionLabel({...site,connection_status:status}))}${row('Technical code',code)}${row('Component',site.connection_method==='browser'?'Browser worker':'Platform connector')}${row('Checked at',site.tested_at||site.updated_at||new Date().toISOString())}${row('Diagnostic reference',site.id||'Discovery preview')}${row('Retry',status==='checking'?'Wait for the worker check':'Test connection after completing the required action')}</dl><p><strong>Required action:</strong> ${esc(action)}</p>${provider?.docs?`<a href="${esc(provider.docs)}" target="_blank" rel="noopener">Platform setup instructions</a>`:''}</section>`;
 }
 export function bindWorkerSettings(ctx){
   const {$,$$,api,run,modal,confirmAction,esc,state}=ctx;

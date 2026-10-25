@@ -1,5 +1,6 @@
 import {upgradeActions,upgradeAction} from '../_shared/upgrade-api.ts';
 import {browserActions,browserAction} from '../_shared/browser-api.ts';
+import {v4Actions,v4Action} from '../_shared/v4-api.ts';
 import {db,rpc,articleData,canonicalURL,text,integer,uuid} from '../_shared/core.ts';
 import {WordPress} from '../_shared/wordpress.ts';
 import {RemoteError,request} from '../_shared/network.ts';
@@ -12,8 +13,10 @@ async function execute(req:Request){
   if(authError||!user) return {status:401,body:{error:'Please sign in again.'}};
   const {data:actor}=await service.from('profiles').select('*').eq('id',user.id).eq('active',true).single();
   if(!actor)return {status:403,body:{error:'Your workspace access is disabled.'}};
+  if(!await rpc('consume_api_rate',{p_actor:actor.id}))return {status:429,body:{error:'Too many requests. Wait one minute and retry.',code:'rate_limited',component:'api',retryable:true,timestamp:new Date().toISOString()}};
   const raw=await req.text();if(raw.length>700000)throw new Error('Request exceeds the size limit.');
   const {action,data:b={}}=JSON.parse(raw);
+  if(v4Actions.has(action))return {status:200,body:await v4Action(actor,action,b)};
   if(browserActions.has(action))return {status:200,body:await browserAction(actor,action,b)};
   if(upgradeActions.has(action))return {status:200,body:await upgradeAction(actor,action,b)};
   const admin=actor.role==='super_admin'||actor.role==='admin';
@@ -138,5 +141,5 @@ Deno.serve(async req=>{
   if(origin&&!allowedOrigins.has(origin))return Response.json({error:'Origin is not allowed.'},{status:403,headers});
   if(req.method!=='POST')return Response.json({error:'Use POST.'},{status:405,headers});
   try{const{status,body}=await execute(req);return Response.json(body,{status,headers});}
-  catch(error){const message=error instanceof Error?error.message:'Request failed.';return Response.json({error:message.includes('password')||message.includes('secret')?'The secure operation failed. Check the connection configuration.':message},{status:400,headers});}
+  catch(error){const message=error instanceof RemoteError?error.message:error instanceof Error?error.message:'Request failed.';return Response.json({error:message,code:error instanceof RemoteError?'destination_http_'+error.status:'operation_failed',component:error instanceof RemoteError?'destination_connector':'application_api',retryable:error instanceof RemoteError&&[0,429,502,503,504].includes(error.status),timestamp:new Date().toISOString(),reference:crypto.randomUUID()},{status:400,headers});}
 });

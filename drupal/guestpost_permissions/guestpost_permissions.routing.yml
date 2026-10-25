@@ -1,0 +1,9 @@
+guestpost_permissions.capabilities:
+  path: '/guestpost/v1/capabilities'
+  defaults:
+    _controller: '\Drupal\guestpost_permissions\Controller\CapabilitiesController::check'
+  requirements:
+    _user_is_logged_in: 'TRUE'
+  options:
+    _auth: ['basic_auth']
+    no_cache: TRUE

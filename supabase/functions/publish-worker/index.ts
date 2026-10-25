@@ -3,13 +3,16 @@ import {connector} from '../_shared/registry.ts';
 import {binding} from '../_shared/connectors.ts';
 import {validateArticleForSite} from '../_shared/campaigns.ts';
 import {RemoteError} from '../_shared/network.ts';
+import {processDiscovery} from '../_shared/inventory.ts';
 Deno.serve(async req=>{
   if(req.method!=='POST')return new Response('Method not allowed',{status:405});
   const token=req.headers.get('x-scheduler-token');
   if(!token||token.length<32||!await rpc('verify_worker_token',{p_token:token}))return new Response('Unauthorized',{status:401});
   await rpc('monitor_browser_connections');
+  // Durable inventory discovery is independent of publication and never receives credentials.
+  const discovery=await processDiscovery();
   const claimed=await rpc('claim_next_job');
-  if(!claimed)return Response.json({processed:0});
+  if(!claimed)return Response.json({processed:0,discovery});
   const {job,campaign,website}=claimed;
   let result;
   try{

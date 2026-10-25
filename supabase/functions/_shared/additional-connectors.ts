@@ -2,10 +2,15 @@ import {Base,segment,b64,confirmation,Website,Credential,Runtime} from './connec
 import {RemoteError} from './network.ts';
 import {cleanHTML} from './core.ts';
 import {parseDocument} from 'htmlparser2';
+import {permissionBridge} from './capabilities.ts';
 
 export class Drupal extends Base {
   private call(path:string,method='GET',body?:any){return this.http(path,method,{Authorization:'Basic '+b64(this.credentials.username+':'+this.credentials.password),'Content-Type':'application/vnd.api+json',Accept:'application/vnd.api+json'},body);}
-  async test(){await this.call('/node/'+segment(this.site.connector_config.bundle)+'?page[limit]=1');return {account:this.credentials.username,permission_status:'credential_verified',message:'JSON:API connection verified. The account must have create/edit/publish access and the selected text format; the worker checks every result.'};}
+  async test(){
+    const result=await this.call('/node/'+segment(this.site.connector_config.bundle)+'?page[limit]=1');if(!Array.isArray(result.data?.data))throw new RemoteError('The website did not return a Drupal JSON:API resource list.',400);
+    try{return await permissionBridge(this.site,{Authorization:'Basic '+b64(this.credentials.username+':'+this.credentials.password)},this.rt);}
+    catch(e){if(e instanceof RemoteError&&e.status===404)throw new RemoteError('Drupal JSON:API is available, but public reads do not verify this account. Install the included GuestPost permissions module, enable JSON:API writes, and grant this account create and direct publish access.',400);throw e;}
+  }
   async publish(job:any,a:any){
     const c=this.site.connector_config,path='/node/'+segment(c.bundle),target=path+'/'+segment(job.id);let id=job.remote_post_id;
     if(!id&&(job.remote_attempt_started||job.needs_reconciliation)){
@@ -27,7 +32,7 @@ export class Drupal extends Base {
 }
 export class Joomla extends Base {
   private call(path:string,method='GET',body?:any){return this.http(path,method,{'X-Joomla-Token':this.credentials.password,Accept:'application/vnd.api+json'},body);}
-  async test(){await this.call('/content/articles?page[limit]=1');return {account:'Joomla API account',permission_status:'credential_verified',message:'Web Services token verified. Create and publish permissions are checked when the worker dispatches the article.'};}
+  async test(){const {data}=await this.call('/content/articles?page[limit]=1');if(!Array.isArray(data?.data))throw new RemoteError('The website did not return a Joomla Web Services article list.',400);const verified=await permissionBridge(this.site,{'X-Joomla-Token':this.credentials.password},this.rt);return verified||{account:'Joomla API account',permission_status:'credential_verified',message:'Joomla API login verified. Configure a same-site permission bridge to check core.create, core.edit and core.edit.state for the selected category; read access alone cannot qualify this account for campaigns.'};}
   async publish(job:any,a:any){
     const c=this.site.connector_config;let id=job.remote_post_id;
     if(!id&&(job.remote_attempt_started||job.needs_reconciliation)){
@@ -51,12 +56,13 @@ export class Blogger extends Base {
     if(!this.access){
       if(this.credentials.refresh_token){
         const {data}=await this.rt.http('https://oauth2.googleapis.com/token','POST',{'Content-Type':'application/x-www-form-urlencoded'},new URLSearchParams({grant_type:'refresh_token',client_id:Deno.env.get('GOOGLE_CLIENT_ID')||'',client_secret:Deno.env.get('GOOGLE_CLIENT_SECRET')||'',refresh_token:this.credentials.refresh_token}).toString());
-        if(!data.access_token)throw new RemoteError('Reconnect Google to renew Blogger authorization.',401);this.access=data.access_token;
+        if(!data.access_token)throw new RemoteError('Reconnect Google to renew Blogger authorization.',401);if(data.scope&&!String(data.scope).split(' ').includes('https://www.googleapis.com/auth/blogger'))throw new RemoteError('Google granted read-only access. Reconnect with Blogger publishing permission.',403);this.access=data.access_token;
       }else this.access=this.credentials.access_token;
     }
     return this.http(path,method,{Authorization:'Bearer '+this.access},body);
   }
   async test(){
+    if(!String(this.credentials.scope||'').split(' ').includes('https://www.googleapis.com/auth/blogger'))throw new RemoteError('Reconnect Google and approve the Blogger publishing scope. Google identity or read-only blog access is insufficient.',403);
     const {data}=await this.call('/users/self/blogs?view=AUTHOR');const blog=(data.items??[]).find((b:any)=>String(b.id)===String(this.site.connector_config.blog_id));
     if(!blog||new URL(blog.url).hostname!==new URL(this.site.website_url).hostname)throw new RemoteError('The Google account cannot author the selected Blogger website.',403);
     return {account:blog.name,permission_status:'verified',message:'Google Blogger authorization verified.'};

@@ -8,7 +8,13 @@ A vanilla JavaScript publishing workspace with platform-specific connectors, Sup
 - [Deployment and provider setup](DEPLOYMENT.md) · [Verified results and remaining acceptance](TEST-RESULTS.md)
 
 
-## V3 connection upgrade
+## V4 repairs and bulk onboarding
+
+Import XLSX, XLS or CSV spreadsheets with column mapping, per-row validation, domain deduplication and durable discovery reports. Select saved articles directly in New Campaign, including drafts; launch retains the existing article ID and commits editorial approval atomically. Publishing eligibility now requires verified write permission, with actionable connector configuration and an online browser worker when required. Google identity connection and licensed metric evidence stay separate from website publishing authorization.
+
+See [V4 operations, connector readiness and exact setup requirements](docs/V4-OPERATIONS.md) and [current test evidence](TEST-RESULTS.md). A production browser host, authorized live CMS accounts, Google OAuth application and paid SEO-provider access remain external setup dependencies.
+
+## V3 foundation (retained)
 
 Website setup checks **native APIs → dedicated CMS connectors → permitted browser workflows**. Unrecognized sites now receive Connector Setup Required with a staged report, rather than an immediate manual-only conclusion. Existing website records, articles and publishing history are retained.
 
@@ -28,7 +34,7 @@ WordPress, Ghost, Shopify Blogs, Webflow, Blogger, Wix, Drupal, Joomla and the g
 4. Preview the article, target list, website shortage, warnings and estimated schedule. Confirm editorial review and website authorization.
 5. Start the campaign. Supabase continues processing after logout or browser closure; monitor progress, errors and confirmed public URLs.
 
-The sidebar contains Dashboard, Websites, Add Website, New Campaign, Running Campaigns, Publishing Reports and Settings. The article library, team management and detailed reports remain available inside their relevant sections.
+The sidebar contains Dashboard, My Websites, Import Websites, Articles, New Campaign, Running Campaigns, Publishing History, Website Discovery and Settings. Add Website is available in My Websites.
 
 ## Scheduling rules
 

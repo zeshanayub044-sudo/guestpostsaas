@@ -1,3 +1,7 @@
+# Version 4 rollout
+
+Apply the two V4 migrations only to the existing dedicated project, preserving all earlier migrations. Deploy api, publish-worker and oauth-callback with deno.json and all shared modules; pass the explicit relative import_map_path deno.json to avoid reusing a stale absolute map path. The V3 browser-bridge remains compatible. See [V4 operations and provider configuration](docs/V4-OPERATIONS.md) and [verification](TEST-RESULTS.md).
+
 # Version 3 deployment
 
 Existing resource identities remain unchanged. Apply the V3 migration only to `aiolueflrpraiaqvdscp`; deploy API, publish-worker, oauth-callback and browser-bridge with all shared files, including `.mjs`. Function bodies authenticate users, the private Cron token, one-use OAuth state or a tenant worker token respectively; gateway JWT checking is intentionally disabled in config.toml.

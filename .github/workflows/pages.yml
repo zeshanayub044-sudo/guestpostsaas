@@ -33,7 +33,7 @@ jobs:
       - name: Check and test publishing connectors
         run: |
           deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts supabase/functions/browser-bridge/index.ts
-          deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts tests/v3_edge_test.ts
+          deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts tests/v3_edge_test.ts tests/v4_edge_test.ts
       - run: npm run build
         env:
           VITE_SUPABASE_URL: https://aiolueflrpraiaqvdscp.supabase.co

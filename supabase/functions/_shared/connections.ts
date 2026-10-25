@@ -7,8 +7,8 @@ import {browserDiscovery} from './browser-contract.mjs';
 
 const fail=(message:string)=>new RemoteError(message,400);
 export async function discover(value:unknown){
-  const u=canonicalURL(value);u.search='';u.hash='';let html='',headers:Record<string,string>={};let reachable=false;
-  try{const result=await request(u.href,'GET',{},undefined,9000,'text');html=String(result.data).slice(0,600000);headers=result.headers;reachable=true;}
+  let u=canonicalURL(value);u.search='';u.hash='';let html='',headers:Record<string,string>={};let reachable=false;
+  try{let result;for(let i=0;i<4;i++){try{result=await request(u.href,'GET',{},undefined,6000,'text');break;}catch(e){if(!(e instanceof RemoteError)||!e.location||i===3)throw e;const next=canonicalURL(new URL(e.location,u).href);if(next.hostname.replace(/^www\./,'')!==u.hostname.replace(/^www\./,''))throw e;u=next;}}if(!result)throw new Error('Website not reachable');html=String(result.data).slice(0,600000);headers=result.headers;reachable=true;}
   catch(e){if(e instanceof Error&&/public IPv4|public HTTPS|reserved domain/.test(e.message))throw e;}
   const lower=html.toLowerCase();let platform='manual';const config:Record<string,string>={};
   if(/blogspot\./.test(u.hostname)||/name=["']generator["'][^>]+blogger/i.test(html))platform='blogger';
@@ -29,8 +29,9 @@ export async function discover(value:unknown){
   try{const r=await request(u.origin+'/.well-known/guestpost-browser.json','GET',{},undefined,4000);const found=browserDiscovery(platform,r.data,u.href);browser=found.workflow;browserPolicy=found.policy;}catch(e){if(e instanceof Error&&!/HTTP|JSON|timed out|Redirect/.test(e.message))browserError='The browser connector manifest needs correction.';}
   if(!browser&&browserPolicy!=='not_permitted'&&platform==='wordpress'){const found=browserDiscovery(platform,null,u.href);browser=found.workflow;browserPolicy=found.policy;}
   const info=catalog.find(p=>p.id===platform)!;
-  const report={native_api:platform==='manual'?'not_detected':'detected',platform_connector:platform==='manual'?'not_configured':'available',browser_workflow:browserPolicy,reachable,recommended_action:browser?'Connect a supported API credential, or authorize the configured browser workflow.':browserPolicy==='not_permitted'?'The destination prohibits browser automation. Use an authorized API connection or contact its administrator.':platform==='manual'?'Install an authorized API connector or a permitted browser workflow manifest.':info.guide,...(browserError?{browser_note:browserError}:{})};
-  return {platform:platform==='manual'?'custom':platform,config,reachable,name:u.hostname.replace(/^www\./,''),guide:info.guide,authentication:info.authentication,docs:info.docs,status:!reachable?'error':platform==='manual'?'setup_required':'authorization_required',browser,report};
+  const unreachable='The public HTTPS website could not be reached. Check the domain, public DNS, HTTPS certificate and availability, then retry discovery. Publishing support has not been determined.';
+  const report={native_api:platform==='manual'?'not_detected':'detected',platform_connector:platform==='manual'?'not_configured':'available',browser_workflow:browserPolicy,reachable,recommended_action:!reachable?unreachable:browser?'Connect a supported API credential, or authorize the configured browser workflow.':browserPolicy==='not_permitted'?'The destination prohibits browser automation. Use an authorized API connection or contact its administrator.':platform==='manual'?'Install an authorized API connector or a permitted browser workflow manifest.':info.guide,...(browserError?{browser_note:browserError}:{})};
+  return {platform:platform==='manual'?'custom':platform,config,reachable,resolved_url:u.href.replace(/\/$/,''),name:u.hostname.replace(/^www\./,''),guide:!reachable?unreachable:info.guide,authentication:info.authentication,docs:info.docs,status:!reachable?'error':platform==='manual'?'setup_required':'authorization_required',browser,report};
 }
 function stringConfig(raw:any){
   if(typeof raw==='string'){if(raw.length>16000)throw fail('Advanced settings exceed their size limit.');try{raw=JSON.parse(raw||'{}');}catch{throw fail('Advanced connection settings must be valid JSON.');}}
@@ -56,6 +57,7 @@ export function connectionSpec(url:string,platform:string,raw:any){
   } else if(platform==='webflow'){
     endpoint='https://api.webflow.com/v2';config.collection_id=identifier(c.collection_id);config.body_field=identifier(c.body_field||'post-body');
     if(!config.collection_id)throw fail('Choose a Webflow CMS collection.');
+    if(c.site_id)config.site_id=identifier(c.site_id);
     for(const k of ['image_field','meta_title_field','meta_description_field','canonical_field','locale_id'])if(c[k])config[k]=identifier(c[k]);
     config.public_path=text(c.public_path||'',1000,true);const sample=canonicalURL(config.public_path.replace('{slug}','article'));
     if(sample.origin!==u.origin||!config.public_path.includes('{slug}'))throw fail('The collection’s public URL must be on this website and include {slug}.');
@@ -66,20 +68,23 @@ export function connectionSpec(url:string,platform:string,raw:any){
   else if(platform==='joomla'){endpoint=base+'/api/index.php/v1';config.category_id=integer(c.category_id,1,2147483647);config.content_language=text(c.content_language||'*',20);if(c.public_path){config.public_path=text(c.public_path,1000);if(canonicalURL(config.public_path.replace('{id}','1').replace('{slug}','article')).origin!==u.origin)throw fail('The article URL must be on this Joomla website.');}}
   else if(platform==='custom'){endpoint=canonicalURL(c.connector_url||base+'/.well-known/guestpost').href.replace(/\/$/,'');if(new URL(endpoint).origin!==u.origin)throw fail('The custom publishing connector must belong to this website.');}
   else if(platform!=='manual')throw fail('Choose a supported platform or manual publishing.');
+  if(c.permission_endpoint){const permission=canonicalURL(c.permission_endpoint);if(permission.origin!==u.origin||permission.search)throw fail('The permission endpoint must use this website’s HTTPS origin without a query.');config.permission_endpoint=permission.href;}
   endpoint=canonicalURL(endpoint).href.replace(/\/$/,'');if(new URL(endpoint).search)throw fail('Publishing endpoints cannot contain a query string.');
   return {api_endpoint:endpoint,connector_config:config};
 }
 export async function testConnection(site:Website,credentials:any){
   const result=await connector(site,credentials).test();
+  if(!result)throw new RemoteError('The publishing permission check returned no result. Configure the destination capability bridge.',400);
   return {permission_status:result.permission_status||'verified',message:result.message||'Publishing permission verified as '+result.account,account:result.account};
 }
 export async function connectWebsite(actor:any,b:any){
-  const service=db();const u=canonicalURL(b.website_url);u.search='';const website_url=u.href.replace(/\/$/,'');
+  const service=db();let input=String(b.website_url||'').trim();if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(input))input='https://'+input;const u=canonicalURL(input);u.search='';let website_url=u.href.replace(/\/$/,'');
   let old:any;
   if(b.id){const r=await service.from('websites').select('*').eq('id',b.id).eq('tenant_id',actor.tenant_id).single();old=r.data;if(!old)throw fail('Website not found in your workspace.');}
   if(old?.connection_method==='browser'&&!b.password)throw fail('Use Test connection to recheck this browser workflow, or provide fresh credentials to rotate it.');
   if(!old&&!b.authorized)throw fail('Confirm that you are authorized to publish to this website.');
   const discovery=await discover(website_url);
+  if(discovery.reachable&&discovery.resolved_url)website_url=discovery.resolved_url;
   const cms_type=b.cms_type&&b.cms_type!=='auto'?String(b.cms_type):discovery!.platform;
   let spec:any,configurationError='';
   try{spec=connectionSpec(website_url,cms_type,{...(discovery?.config??{}),...stringConfig(b.connector_config),...(b.api_endpoint?{api_endpoint:b.api_endpoint}:{})});}

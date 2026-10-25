@@ -16,9 +16,10 @@ test('discovery cannot load arbitrary script workflows or cross-origin editor pa
   const manifest={...wp,id:'custom-editor-v1',paths:{...wp.paths,login:'//evil.org/login'}};assert.throws(()=>browserWorkflow('custom',manifest,'https://publisher.org'));
 });
 test('browser eligibility needs a verified connection and a live worker',()=>{
-  const site={status:'active',connection_status:'connected',cms_type:'custom',connection_method:'browser'};
+  const site={status:'active',connection_status:'connected',permission_status:'verified',cms_type:'custom',connection_method:'browser'};
   assert.equal(automaticallyEligible(site,[]),false);assert.equal(automaticallyEligible(site,[{active:true,last_seen_at:new Date().toISOString()}]),true);assert.equal(automaticallyEligible({...site,connection_status:'checking'},[{active:true,last_seen_at:new Date().toISOString()}]),false);
   assert.equal(connectionLabel(site),'Browser Connected');assert.equal(connectionLabel({...site,connection_method:'api'}),'API Connected');assert.equal(connectionLabel({connection_status:'setup_required'}),'Connector Setup Required');
+  assert.equal(automaticallyEligible({...site,permission_status:'credential_verified'},[{active:true,last_seen_at:new Date().toISOString()}]),false);
 });
 test('an explicit destination prohibition blocks even the WordPress browser fallback',()=>{
   const denied={protocol:'guestpost.browser.v1',automation_permitted:false};

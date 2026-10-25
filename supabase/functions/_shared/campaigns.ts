@@ -17,13 +17,19 @@ export async function campaignPlan(actor:any,b:any){
   const quantity=integer(b.quantity??b.website_ids?.length,1,500),interval=integer(b.interval??300,300,86400);
   const mode=['auto','manual','category'].includes(b.mode)?b.mode:'auto';
   let article:any;
-  if(b.article_id){const {data}=await db().from('articles').select('*').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).eq('status','approved').single();if(!data)throw new Error('Select an approved article from this workspace.');article=data;}
+  if(b.article_id){const {data,error}=await db().from('articles').select('*').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).single();if(error||!data)throw new Error('The selected article could not be loaded from this workspace. Refresh the article list.');if(b.article_updated_at&&b.article_updated_at!==data.updated_at)throw new Error('The selected article changed. Refresh and review it again.');article=data;}
   else article=articleData(b.article??{});
   if(!article.content.replace(/<[^>]*>/g,'').trim()&&!article.content.includes('<img'))throw new Error('Add article content before creating a campaign.');
   if(article.featured_image){const u=canonicalURL(article.featured_image);if(u.origin!==new URL(Deno.env.get('SUPABASE_URL')!).origin||!u.pathname.startsWith('/storage/v1/object/public/article-images/'+actor.tenant_id+'/'))throw new Error('Upload the featured image to this workspace.');}
   const category=text(b.category,100),language=text(b.language,20),platform=text(b.platform,30);
   if(mode==='category'&&!category)throw new Error('Choose a category for category-based allocation.');
-  const connected=await rpc('eligible_websites',{p_actor:actor.id,p_content:article.content,p_category:category,p_language:language,p_platform:platform});
+  let connected=await rpc('eligible_websites',{p_actor:actor.id,p_content:article.content,p_category:category,p_language:language,p_platform:platform});
+  let qualityExcluded=0;
+  if(b.quality===true){
+    const service=db();const {data:settings,error:settingsError}=await service.from('settings').select('quality_filters').eq('tenant_id',actor.tenant_id).single();
+    const {data:metrics,error:metricsError}=await service.from('website_metrics').select('*').eq('tenant_id',actor.tenant_id).eq('verification','provider_verified').gte('observed_at',new Date(Date.now()-90*86400000).toISOString());if(settingsError||metricsError)throw new Error('Website quality data could not be loaded.');
+    const filters=settings?.quality_filters||{};connected=connected.filter((site:any)=>{const m=Object.fromEntries((metrics||[]).filter((r:any)=>r.website_id===site.id).map((r:any)=>[r.metric,r]));const passed=m.domain_authority?.provider==='moz'&&Number(m.domain_authority.value)>=Number(filters.minimum_da??30)&&m.spam_score?.provider==='moz'&&Number(m.spam_score.value)<=Number(filters.maximum_spam??9)&&Number(m.estimated_organic_traffic?.value??-1)>=Number(filters.minimum_traffic??1000)&&(!filters.country||site.country===filters.country)&&(!filters.language||site.language===filters.language)&&(!filters.category||site.category.toLowerCase()===filters.category.toLowerCase());if(!passed)qualityExcluded++;return passed;});
+  }
   const incompatible:string[]=[];
   const eligible=connected.filter((site:any)=>{try{validateArticleForSite(site,{...article,...(b.overrides?.[site.id]?articleData({...article,...b.overrides[site.id]}):{})});return true;}catch{incompatible.push(site.website_name);return false;}});
   const ids=(b.website_ids??[]).map(uuid);if(new Set(ids).size!==ids.length)throw new Error('Select each website only once.');
@@ -41,7 +47,7 @@ export async function campaignPlan(actor:any,b:any){
   for(const site of targets)validateArticleForSite(site,{...article,...overrides[site.id]});
   const proposed=new Date(b.start_time||Date.now());if(!Number.isFinite(proposed.getTime()))throw new Error('Choose a valid campaign start time.');
   const start=Math.max(Date.now(),proposed.getTime());
-  const warnings=[...(incompatible.length?[incompatible.length+' websites were excluded because this article’s formatting or image needs manual publishing on those connections.']:[]),...new Set(targets.flatMap((w:any)=>{
+  const warnings=[...(qualityExcluded?[qualityExcluded+' websites were excluded because current provider-verified metrics are missing or do not meet the saved quality filters.']:[]),...(incompatible.length?[incompatible.length+' websites were excluded because this article’s formatting or image needs manual publishing on those connections.']:[]),...new Set(targets.flatMap((w:any)=>{
     const p=catalog.find(p=>p.id===w.cms_type);const result=[];
     if(article.canonical_url&&!p?.canonical&&!w.connector_config?.canonical_field)result.push(`${p?.name||w.cms_type} does not provide this canonical setting automatically; review its site template or publish that version manually.`);
     if(w.permission_status!=='verified')result.push(`${p?.name||w.cms_type}: credentials are verified; the worker checks create and publish permission at dispatch.`);
@@ -54,6 +60,6 @@ export async function startCampaign(actor:any,b:any){
   const plan=await campaignPlan(actor,b);
   if(plan.shortage)throw new Error(`Only ${plan.eligible_count} eligible websites are available for ${plan.quantity} publications. Reduce the quantity or connect more websites.`);
   const args={p_actor:actor.id,p_name:text(b.campaign_name||plan.article.title,200,true),p_sites:plan.targets.map(w=>w.id),p_interval:plan.interval,p_start:plan.start_time,p_overrides:plan.overrides};
-  const id=b.article_id?await rpc('create_campaign',{...args,p_article:uuid(b.article_id)}):await rpc('create_inline_campaign',{...args,p_article:plan.article,p_mode:plan.mode});
+  const id=b.article_id?await rpc('approve_and_create_campaign',{...args,p_article:uuid(b.article_id),p_version:b.article_updated_at||plan.article.updated_at,p_mode:plan.mode}):await rpc('create_inline_campaign',{...args,p_article:plan.article,p_mode:plan.mode});
   return {id,first_at:plan.first_at,last_at:plan.last_at,total:plan.quantity};
 }

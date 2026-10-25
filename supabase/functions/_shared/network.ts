@@ -2,6 +2,7 @@
 import ipaddr from 'ipaddr.js';
 import {canonicalURL} from './core.ts';
 export class RemoteError extends Error {
+  location?:string;
   constructor(message:string,public status=0,public retryAfter=0,public uncertain=false){super(message);}
 }
 export function publicIP(address:string):boolean {
@@ -47,7 +48,7 @@ export async function request(url:string,method='GET',headers:Record<string,stri
       if(status>=200)break;
     }
     if(status<200)throw new RemoteError('Invalid informational response.');
-    if(status>=300&&status<400)throw new RemoteError('Redirect refused. Use the final HTTPS API URL.',status);
+    if(status>=300&&status<400){const error=new RemoteError('Redirect refused. Use the final HTTPS API URL.',status);error.location=h.location;throw error;}
     const raw=h['retry-after'];const wait=raw?Math.max(0,/^\d+$/.test(raw)?Number(raw):Math.ceil((Date.parse(raw)-Date.now())/1000)):0;
     if(h['content-encoding']&&h['content-encoding']!=='identity')throw new RemoteError('Unsupported remote content encoding.',status,0,mutates);
     if(h['transfer-encoding']&&h['content-length'])throw new RemoteError('Ambiguous remote HTTP framing.',status,0,mutates);
@@ -62,7 +63,7 @@ export async function request(url:string,method='GET',headers:Record<string,stri
       add(pending);pending=new Uint8Array();while(await more()){add(pending);pending=new Uint8Array();}
     }
     const response=new Uint8Array(size);let offset=0;for(const c of chunks){response.set(c,offset);offset+=c.length;}
-    let data:any;try{data=format==='text'?decoder.decode(response):JSON.parse(decoder.decode(response));}catch{if(status>=400)throw new RemoteError(`Publishing API returned HTTP ${status}.`,status,Math.min(604800,wait||0),mutates&&status>=500);throw new RemoteError('The website returned an invalid JSON response.',status,0,mutates);}
+    let data:any;try{data=format==='text'?decoder.decode(response):size===0&&status>=200&&status<300?null:JSON.parse(decoder.decode(response));}catch{if(status>=400)throw new RemoteError(`Publishing API returned HTTP ${status}.`,status,Math.min(604800,wait||0),mutates&&status>=500);throw new RemoteError('The website returned an invalid JSON response.',status,0,mutates);}
     if(status>=400)throw new RemoteError(`Publishing API returned HTTP ${status}${data?.code?` (${String(data.code).replace(/[^a-z0-9_]/gi,'').slice(0,60)})`:''}.`,status,Math.min(604800,wait||0),mutates&&status>=500);
     return {status,headers:h,data};
   };
