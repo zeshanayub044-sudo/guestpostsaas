@@ -16,8 +16,8 @@ test('discovery cannot load arbitrary script workflows or cross-origin editor pa
   const manifest={...wp,id:'custom-editor-v1',paths:{...wp.paths,login:'//evil.org/login'}};assert.throws(()=>browserWorkflow('custom',manifest,'https://publisher.org'));
 });
 test('browser eligibility needs a verified connection and a live worker',()=>{
-  const site={status:'active',connection_status:'connected',permission_status:'verified',cms_type:'custom',connection_method:'browser'};
-  assert.equal(automaticallyEligible(site,[]),false);assert.equal(automaticallyEligible(site,[{active:true,last_seen_at:new Date().toISOString()}]),true);assert.equal(automaticallyEligible({...site,connection_status:'checking'},[{active:true,last_seen_at:new Date().toISOString()}]),false);
+  const site={status:'active',connection_status:'connected',permission_status:'verified',can_publish:true,qualification:{auto_ready:true,worker_online:true},cms_type:'custom',connection_method:'browser'};
+  assert.equal(automaticallyEligible({...site,qualification:{auto_ready:true,worker_online:false}},[]),false);assert.equal(automaticallyEligible(site,[]),true);assert.equal(automaticallyEligible({...site,connection_status:'checking'},[]),false);assert.equal(automaticallyEligible({...site,qualification:{auto_ready:false,worker_online:true}},[]),false);assert.equal(automaticallyEligible({...site,can_publish:false},[]),false);
   assert.equal(connectionLabel(site),'Browser Connected');assert.equal(connectionLabel({...site,connection_method:'api'}),'API Connected');assert.equal(connectionLabel({connection_status:'setup_required'}),'Connector Setup Required');
   assert.equal(automaticallyEligible({...site,permission_status:'credential_verified'},[{active:true,last_seen_at:new Date().toISOString()}]),false);
 });

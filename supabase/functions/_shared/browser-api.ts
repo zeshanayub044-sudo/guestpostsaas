@@ -37,6 +37,7 @@ export async function browserGateway(req:Request){
       if(!claimed)return Response.json({kind:'idle'});
       const {job,campaign,website}=claimed;
       try{
+        if(!await rpc('website_publication_ready',{p_actor:campaign.owner_id,p_website:website.id}))throw new Error('Publishing eligibility changed.');
         const data=await payload(worker,job,'job');
         if(binding({...website,...job.target_snapshot,connection_version:data.site.connection_version})!==binding(data.site))throw new Error('Connection workflow changed.');
         return Response.json({kind:'job',task:job,article:{...campaign.article_snapshot,...job.overrides},...data});

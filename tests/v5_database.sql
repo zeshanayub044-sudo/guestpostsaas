@@ -28,6 +28,7 @@ do $$ declare owner_id uuid:=gen_random_uuid();employee uuid:=gen_random_uuid();
  insert into public.websites(tenant_id,owner_id,website_name,website_url,api_endpoint,cms_type,connection_status,permission_status) values(tenant,owner_id,'V5 transactional target','https://v5-fixture.publisher.org','https://v5-fixture.publisher.org/.well-known/guestpost','custom','connected','verified') returning id into w;
  insert into public.smoke_test_runs(id,tenant_id,initiated_by,article_id,target_website_id,reviewed_version_id,status) select runid,tenant,articles.owner_id,a,w,current_version_id,'awaiting_approval' from public.articles where id=a;
  select updated_at into version_time from public.articles where id=a;
+ perform pg_temp.qualify_fixture(owner_id,w);
  campaign:=public.start_attributed_campaign(owner_id,a,version_time,'V5 transactional smoke',array[w],300,now(),'{}','manual',jsonb_build_object('smoke_run_id',runid));
  if not exists(select 1 from public.smoke_test_runs where id=runid and campaign_id=campaign and status='scheduled') then raise exception 'Atomic smoke scheduling failed';end if;
  denied:=false;begin perform public.start_attributed_campaign(owner_id,a,version_time,'Duplicate smoke',array[w],300,now(),'{}','manual',jsonb_build_object('smoke_run_id',runid));exception when others then denied:=true;end;if not denied then raise exception 'Smoke run launched twice';end if;

@@ -6,6 +6,7 @@ export const actionPermissions:Record<string,string>={
 };
 export async function authorizeAction(actor:any,action:string,b:any){
  const permission=action==='article.save'&&b.id?'articles.edit':actionPermissions[action];if(permission)requirePermission(actor,permission);
+ if((action.startsWith('website.')||action.startsWith('oauth.'))&&(b.id||b.website_id)&&!await rpc('website_access',{p_actor:actor.id,p_website:uuid(b.id||b.website_id),p_scope:'connect'}))throw new Error('This website connection is not assigned to your account.');
  if(action==='article.save'&&b.id)requirePermission(actor,'articles.edit');
  if((action.startsWith('article.')&&b.id)||action.startsWith('seo.')&&b.article_id){
   const {data:a}=await db().from('articles').select('id,owner_id,assigned_to,status').eq('id',uuid(b.id||b.article_id)).eq('tenant_id',actor.tenant_id).single();
@@ -13,7 +14,7 @@ export async function authorizeAction(actor:any,action:string,b:any){
  }
  if(['campaign.preview','campaign.start','campaign.create'].includes(action)&&b.article_id){
   const {data:a}=await db().from('articles').select('status,owner_id,assigned_to').eq('id',uuid(b.article_id)).eq('tenant_id',actor.tenant_id).single();if(!a)throw new Error('Article not found in this workspace.');
-  if(!can(actor,'articles.read_all')&&a.owner_id!==actor.id&&a.assigned_to!==actor.id&&a.status!=='approved')throw new Error('Choose an approved article or one assigned to you.');
+  if(!can(actor,'articles.read_all')&&a.owner_id!==actor.id&&a.assigned_to!==actor.id)throw new Error('Choose an article assigned to your account.');
   if(action!=='campaign.preview'&&a.status!=='approved'){requirePermission(actor,'articles.approve');requirePermission(actor,'campaigns.approve');}
  }
  if(action==='campaign.control')await ownCampaign(actor,b.id);

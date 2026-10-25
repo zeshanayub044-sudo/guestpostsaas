@@ -13,6 +13,7 @@ begin
     select tenant,uid,'Fixture '||n,'https://fixture-'||n||'.publisher.org','https://fixture-'||n||'.publisher.org/.well-known/guestpost','custom','connected','verified' from generate_series(1,200) n;
   select array_agg(id order by website_name) into ids from public.websites where tenant_id=tenant;
   insert into public.articles(tenant_id,owner_id,title,content,status) values(tenant,uid,'V3 test','<p>Immutable fixture content</p>','approved') returning id into aid;
+  foreach wid in array ids loop perform pg_temp.qualify_fixture(uid,wid);end loop;
   cid:=public.create_campaign(uid,aid,'200 unique targets',ids,300,now(),'{}');
   if (select count(*) from public.publishing_jobs where campaign_id=cid)<>200 or (select count(distinct website_id) from public.publishing_jobs where campaign_id=cid)<>200 then raise exception 'Unique 200-site allocation failed'; end if;
   if (select min(scheduled_at) from public.publishing_jobs where campaign_id=cid)<now()+interval '300 seconds' then raise exception 'Initial wait is missing'; end if;
@@ -45,11 +46,12 @@ begin
   perform public.authenticate_browser_worker(repeat('a',64),'fixture');
   insert into public.websites(tenant_id,owner_id,website_name,website_url,api_endpoint,cms_type,connection_status,permission_status,connection_method,connector_config)
     values(tenant,uid,'Browser fixture','https://browser-fixture.publisher.org','https://browser-fixture.publisher.org','custom','connected','verified','browser','{"browser_workflow":{"id":"custom-editor-v1"}}') returning id into browser_site;
+  perform pg_temp.qualify_fixture(uid,browser_site);
   c2:=public.create_campaign(uid,aid2,'Browser dispatch',array[browser_site],300,now(),'{}');
   update public.publishing_jobs set scheduled_at=now()-interval '1 hour' where campaign_id=c2;
   if public.claim_next_job() is not null then raise exception 'API runner claimed browser work'; end if;
   perform public.reserve_connection_version(uid,browser_site);
-  update public.websites set connection_status='connected',permission_status='verified' where id=browser_site;
+  update public.websites set connection_status='connected',permission_status='verified',tested_at=now() where id=browser_site;
   claimed:=public.claim_next_job('browser',wid);if claimed is null or claimed->'job'->>'browser_worker_id'<>wid::text then raise exception 'Tenant-scoped browser claim failed'; end if;
   if (claimed->'job'->>'claimed_connection_version')::integer<>2 or (claimed->'job'->'target_snapshot'->>'connection_version')::integer<>1 then raise exception 'Queued jobs did not adopt the rotated credential generation'; end if;
   first_job:=(claimed->'job'->>'id')::uuid;first_token:=(claimed->'job'->>'lease_token')::uuid;

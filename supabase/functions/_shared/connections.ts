@@ -1,14 +1,14 @@
 import {db,rpc,canonicalURL,text,integer} from './core.ts';
 import {request,RemoteError} from './network.ts';
 import {connector} from './registry.ts';
-import {binding,Website} from './connectors.ts';
+import {binding,Website,Runtime} from './connectors.ts';
 import catalog from './catalog.json' with {type:'json'};
 import {browserDiscovery} from './browser-contract.mjs';
 
 const fail=(message:string)=>new RemoteError(message,400);
-export async function discover(value:unknown){
+export async function discover(value:unknown,http:typeof request=request){
   let u=canonicalURL(value);u.search='';u.hash='';let html='',headers:Record<string,string>={};let reachable=false;
-  try{let result;for(let i=0;i<4;i++){try{result=await request(u.href,'GET',{},undefined,6000,'text');break;}catch(e){if(!(e instanceof RemoteError)||!e.location||i===3)throw e;const next=canonicalURL(new URL(e.location,u).href);if(next.hostname.replace(/^www\./,'')!==u.hostname.replace(/^www\./,''))throw e;u=next;}}if(!result)throw new Error('Website not reachable');html=String(result.data).slice(0,600000);headers=result.headers;reachable=true;}
+  try{let result;for(let i=0;i<4;i++){try{result=await http(u.href,'GET',{},undefined,6000,'text');break;}catch(e){if(!(e instanceof RemoteError)||!e.location||i===3)throw e;const next=canonicalURL(new URL(e.location,u).href);if(next.hostname.replace(/^www\./,'')!==u.hostname.replace(/^www\./,''))throw e;u=next;}}if(!result)throw new Error('Website not reachable');html=String(result.data).slice(0,600000);headers=result.headers;reachable=true;}
   catch(e){if(e instanceof Error&&/public IPv4|public HTTPS|reserved domain/.test(e.message))throw e;}
   const lower=html.toLowerCase();let platform='manual';const config:Record<string,string>={};
   if(/blogspot\./.test(u.hostname)||/name=["']generator["'][^>]+blogger/i.test(html))platform='blogger';
@@ -19,14 +19,14 @@ export async function discover(value:unknown){
   else if(/drupal/i.test(headers['x-generator']||'')||/name=["']generator["'][^>]+drupal/i.test(html))platform='drupal';
   else if(/name=["']generator["'][^>]+joomla/i.test(html))platform='joomla';
   else {
-    try{const r=await request(u.href.replace(/\/$/,'')+'/wp-json/','GET',{},undefined,6000);if(r.data?.namespaces?.includes('wp/v2')){platform='wordpress';reachable=true;}}
+    try{const r=await http(u.href.replace(/\/$/,'')+'/wp-json/','GET',{},undefined,6000);if(r.data?.namespaces?.includes('wp/v2')){platform='wordpress';reachable=true;}}
     catch{/* A site without WordPress is never sent WordPress credentials. */}
     if(platform==='manual'&&(/wp-content\/|wp-includes\//.test(lower)||/api\.w\.org/.test(headers.link||'')))platform='wordpress';
   }
   // Check the documented generic endpoint independently of WordPress discovery.
   let customApi=false,browser:any=null,browserError='',browserPolicy='requires_configuration';
-  try{const r=await request(u.origin+'/.well-known/guestpost','GET',{},undefined,4000);customApi=r.data?.protocol==='guestpost.v1';if(customApi&&platform==='manual'){platform='custom';config.connector_url=u.origin+'/.well-known/guestpost';}}catch{/* Not an installed native connector. */}
-  try{const r=await request(u.origin+'/.well-known/guestpost-browser.json','GET',{},undefined,4000);const found=browserDiscovery(platform,r.data,u.href);browser=found.workflow;browserPolicy=found.policy;}catch(e){if(e instanceof Error&&!/HTTP|JSON|timed out|Redirect/.test(e.message))browserError='The browser connector manifest needs correction.';}
+  try{const r=await http(u.origin+'/.well-known/guestpost','GET',{},undefined,4000);customApi=r.data?.protocol==='guestpost.v1';if(customApi&&platform==='manual'){platform='custom';config.connector_url=u.origin+'/.well-known/guestpost';}}catch{/* Not an installed native connector. */}
+  try{const r=await http(u.origin+'/.well-known/guestpost-browser.json','GET',{},undefined,4000);const found=browserDiscovery(platform,r.data,u.href);browser=found.workflow;browserPolicy=found.policy;}catch(e){if(e instanceof Error&&!/HTTP|JSON|timed out|Redirect/.test(e.message))browserError='The browser connector manifest needs correction.';}
   if(!browser&&browserPolicy!=='not_permitted'&&platform==='wordpress'){const found=browserDiscovery(platform,null,u.href);browser=found.workflow;browserPolicy=found.policy;}
   const info=catalog.find(p=>p.id===platform)!;
   const unreachable='The public HTTPS website could not be reached. Check the domain, public DNS, HTTPS certificate and availability, then retry discovery. Publishing support has not been determined.';
@@ -72,8 +72,8 @@ export function connectionSpec(url:string,platform:string,raw:any){
   endpoint=canonicalURL(endpoint).href.replace(/\/$/,'');if(new URL(endpoint).search)throw fail('Publishing endpoints cannot contain a query string.');
   return {api_endpoint:endpoint,connector_config:config};
 }
-export async function testConnection(site:Website,credentials:any){
-  const result=await connector(site,credentials).test();
+export async function testConnection(site:Website,credentials:any,runtime?:Runtime){
+  const result=await connector(site,credentials,runtime).test();
   if(!result)throw new RemoteError('The publishing permission check returned no result. Configure the destination capability bridge.',400);
   return {permission_status:result.permission_status||'verified',message:result.message||'Publishing permission verified as '+result.account,account:result.account};
 }

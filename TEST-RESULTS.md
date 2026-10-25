@@ -1,3 +1,15 @@
+# V6 verification — 26 October 2026
+
+- 18 Node import/report tests; 45 Edge transport, connector, source-parser and qualification tests; 6 browser security tests.
+- All 17 migrations and four SQL suites passed in isolated PostgreSQL (21 migration/suite outcomes). Auth, Vault, Storage, Cron and HTTP use explicit local adapters. These tests do not prove a live CMS publication.
+- Six isolated UI checks: unqualified sites excluded from campaigns, group/evidence display, 1,050 rows across two sheets, strict policy controls, original-paragraph preservation and no publication dispatch.
+- Seven live API checks passed: owner password sign-in/session context, three preserved websites with zero automatically ready, zero falsely imported workbooks, five archived prospects, source-only API enforcement, and actual provider/Google setup status.
+- Production preservation check: eight private backup records, three owner websites, five archived prospects, owner active, previous disposable fixture disabled, zero campaigns. The real retirement source SHA-256 remains `a9a9f143cdf7fb93c66cdc5a37d2a882f1965ab29086cfb9767551f2733a6873`, and its article remains a draft.
+- Three read-only website checks completed. Missing spreadsheet source, licensed SEO evidence and publishing credentials keep every record pending. A login template and one label/domain mismatch require review. A failed secure request is temporary/unverified, not proof of permanent inactivity.
+- OpenAI, Moz and Ahrefs credentials are absent; Google sign-in is disabled; no production browser publishing worker is enrolled. No AI generation, OAuth consent or external CMS publication is claimed. The actual owner spreadsheet is still required.
+
+Previous verification records follow.
+
 # Verification - Version 5, 25 October 2026
 
 Dedicated scope: guestpostsaas and Supabase aiolueflrpraiaqvdscp. Existing three websites, original approved article and owner account are preserved. The attached article is saved as a separate unapproved draft, with an unchanged original and a separately labeled assistant-prepared SEO proposal. No campaign or external publication was launched.

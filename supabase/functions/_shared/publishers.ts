@@ -1,3 +1,4 @@
+import {assessQuality} from './qualification-contract.mjs';
 import {db,rpc,text,uuid,canonicalURL,integer} from './core.ts';
 import {request} from './network.ts';
 import {providerSecret} from './providers.ts';
@@ -5,7 +6,7 @@ import {requirePermission,auditActor} from './authorization.ts';
 import {importInventory} from './inventory.ts';
 
 export function providerMetric(value:any,max=Number.MAX_SAFE_INTEGER){return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=max?value:null;}
-export function qualifyPublisher(metrics:any,filters:any={}){return ['domain_rating','spam_score','estimated_organic_traffic'].every(k=>typeof metrics[k]?.metric_value==='number'&&Number.isFinite(metrics[k].metric_value))&&metrics.domain_rating?.verification==='provider_verified'&&metrics.domain_rating.provider==='ahrefs'&&metrics.domain_rating.metric_value>=Number(filters.minimum_dr??30)&&metrics.spam_score?.verification==='provider_verified'&&metrics.spam_score.provider==='moz'&&metrics.spam_score.metric_value<=Number(filters.maximum_spam??5)&&metrics.estimated_organic_traffic?.verification==='provider_verified'&&metrics.estimated_organic_traffic.provider==='ahrefs'&&metrics.estimated_organic_traffic.metric_value>=Number(filters.minimum_traffic??1000);}
+export function qualifyPublisher(metrics:any,filters:any={}){return assessQuality(metrics,{minimum_da:filters.minimum_da??30,maximum_spam:filters.maximum_spam??5,minimum_traffic:filters.minimum_traffic??1000,traffic_required:true}).passed;}
 export async function licensedMetrics(domain:string,ahrefs:any,moz:any,http:typeof request=request){
  const day=new Date().toISOString().slice(0,10),rows:any[]=[];
  const add=(provider:string,metric_name:string,metric_value:any,url:string)=>rows.push({provider,metric_name,metric_value,observed_at:new Date().toISOString(),verification:metric_value===null?'unknown':'provider_verified',evidence_reference:url});

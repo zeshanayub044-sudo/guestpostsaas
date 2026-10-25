@@ -1,0 +1,13 @@
+-- Used only inside a rolled-back test transaction. Never run against owner records.
+create or replace function pg_temp.qualify_fixture(p_actor uuid,p_site uuid) returns void language plpgsql as $$
+declare tenant uuid;batch uuid;book uuid;secret uuid;begin
+ select tenant_id into tenant from public.profiles where id=p_actor;
+ insert into public.import_batches(tenant_id,owner_id,request_id,filename,total_rows) values(tenant,p_actor,gen_random_uuid(),'isolated-fixture.csv',1) returning id into batch;
+ insert into public.workbook_imports(tenant_id,batch_id,owner_id,filename,source_sha256,storage_path,source_proofs,manifest,total_rows,received_rows,status,sealed_at) values(tenant,batch,p_actor,'isolated-fixture.csv',encode(extensions.digest(gen_random_uuid()::text,'sha256'),'hex'),'isolated-test-only','["test-proof"]','[{"name":"Fixture","header_row":1,"row_count":1}]',1,1,'complete',now()) returning id into book;
+ insert into public.import_rows(tenant_id,batch_id,workbook_id,row_number,source_sheet,sequence_number,website_id,website_url,status,message) select tenant,batch,book,2,'Fixture',1,id,website_url,'discovered','Transactional fixture only' from public.websites where id=p_site;
+ insert into public.website_qualifications(tenant_id,website_id,reachability_status,reachability_evidence,reachability_checked_at,last_successful_at,editorial_review,reviewed_by,reviewed_content_sha,reviewed_at,review_notes) values(tenant,p_site,'reachable',jsonb_build_object('content_sha',repeat('a',64)),now(),now(),'approved',p_actor,repeat('a',64),now(),'Isolated fixture editorial approval') on conflict(website_id) do update set reachability_status=excluded.reachability_status,reachability_evidence=excluded.reachability_evidence,reachability_checked_at=now(),editorial_review='approved',reviewed_by=p_actor,reviewed_content_sha=repeat('a',64),reviewed_at=now();
+ insert into public.website_metrics(tenant_id,website_id,metric,value,provider,source_url,observed_at,verification) values(tenant,p_site,'domain_authority',30,'moz','https://api.moz.com/jsonrpc',now(),'provider_verified'),(tenant,p_site,'spam_score',0,'moz','https://api.moz.com/jsonrpc',now(),'provider_verified'),(tenant,p_site,'estimated_organic_traffic',1000,'ahrefs','https://api.ahrefs.com/v3/site-explorer/metrics',now(),'provider_verified') on conflict(website_id,metric) do update set value=excluded.value,provider=excluded.provider,observed_at=excluded.observed_at,verification=excluded.verification;
+ select vault.create_secret('isolated-test-only') into secret;
+ insert into private.website_credentials(website_id,secret_id) values(p_site,secret) on conflict(website_id) do nothing;
+ update public.websites set tested_at=now() where id=p_site;
+end $$;

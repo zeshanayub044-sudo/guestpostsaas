@@ -4,20 +4,19 @@ import {connector} from '../_shared/registry.ts';
 import {binding} from '../_shared/connectors.ts';
 import {validateArticleForSite} from '../_shared/campaigns.ts';
 import {RemoteError} from '../_shared/network.ts';
-import {processDiscovery} from '../_shared/inventory.ts';
 Deno.serve(async req=>{
   if(req.method!=='POST')return new Response('Method not allowed',{status:405});
   const token=req.headers.get('x-scheduler-token');
   if(!token||token.length<32||!await rpc('verify_worker_token',{p_token:token}))return new Response('Unauthorized',{status:401});
   await rpc('monitor_browser_connections');
   // Durable inventory discovery is independent of publication and never receives credentials.
-  const discovery=await processDiscovery();
   const verification=await processReportVerification();
   const claimed=await rpc('claim_next_job');
-  if(!claimed)return Response.json({processed:0,discovery,verification});
+  if(!claimed)return Response.json({processed:0,verification});
   const {job,campaign,website}=claimed;
   let result;
   try{
+    if(!await rpc('website_publication_ready',{p_actor:campaign.owner_id,p_website:website.id}))throw new RemoteError('Current spreadsheet, quality, assignment or publishing authorization is no longer valid.',403);
     const creds=await rpc('read_credentials',{p_website:website.id});
     const target={...website,...job.target_snapshot};
     if(!creds||creds.connection_key!==binding(website)||binding(target)!==binding(website))throw new RemoteError('Credentials were revoked or the destination changed. Reconnect this website before retrying.',401);

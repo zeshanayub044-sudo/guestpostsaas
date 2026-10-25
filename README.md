@@ -1,5 +1,13 @@
-# GuestPost Universal - Version 5
+# GuestPost Universal - Version 6
 
+
+V6 uses only the owner’s original workbook for candidate selection. Every target needs fresh Moz DA >=30, Moz Spam Score strictly <5%, required traffic evidence, public reachability, editorial review and verified publishing authorization. Ahrefs DR never substitutes for Moz DA. Website assignments constrain employee access, campaign creation and dispatch.
+
+Import every data sheet with its original row references through **Import Websites**. The original file is stored privately and server-parsed; resumable chunks are compared with the saved source. Limits: 20 MB, 100,000 data rows, 200 sheets, 250 columns and 2,000 characters per source cell. Column headers are required; headerless files are rejected explicitly. Supplied scores and permission labels remain unverified. Prior research is preserved outside the active candidate lists.
+
+The separate `qualification-worker` performs read-only checks. Publishing still requires at least five minutes between starts and permits at most 500 destinations per campaign. Browser publishing needs an authorized persistent Node/Playwright host. Licensed metric/AI credentials, real OAuth consent and a permitted CMS remain external setup requirements. An imported list or a contribution page grants no publishing rights.
+
+Validation: `npm test`, `npm run check:edge`, `npm run test:edge`, `npm run test:db`, `npm run test:browser`, and `npm run test:ui` after a build. SQL tests use isolated in-memory PostgreSQL with platform adapters; browser UI tests intercept backend requests and never create real accounts. Live deployment and external publication evidence are reported separately.
 
 A vanilla JavaScript publishing workspace with platform-specific connectors, Supabase Auth, encrypted credentials and a persistent sequential publishing queue.
 

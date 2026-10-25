@@ -5,9 +5,9 @@ export class WordPress {
   private deadline=Date.now()+85000;
   private request(...args:Parameters<typeof request>){
     const remaining=this.deadline-Date.now();if(remaining<=0)throw new RemoteError('Connector time budget exhausted; retry the job.');
-    args[4]=Math.min(25000,remaining);return request(...args);
+    args[4]=Math.min(25000,remaining);return this.transport(...args);
   }
-  constructor(private endpoint:string,credentials:{username:string;password:string}){
+  constructor(private endpoint:string,credentials:{username:string;password:string},private transport:typeof request=request){
     canonicalURL(endpoint);this.endpoint=endpoint.replace(/\/$/,'');
     this.headers={Authorization:'Basic '+btoa(unescape(encodeURIComponent(credentials.username+':'+credentials.password))),'Content-Type':'application/json'};
   }

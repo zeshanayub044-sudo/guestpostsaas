@@ -1,5 +1,6 @@
 import {automaticallyEligible} from './v3.js';
-import {createV5Experience,openClientReport} from './v5.js';
+import {openClientReport} from './v5.js';
+import {createV6Experience} from './v6.js';
 import {createClient} from '@supabase/supabase-js';
 import DOMPurify from 'dompurify';
 import {createIcons,LayoutDashboard,Globe,Plus,FileText,Send,ListOrdered,CheckCircle2,TriangleAlert,ChartNoAxesCombined,Users,Settings,LogOut,ArrowUpRight,ArrowRight,Search,Bell,Menu,X,ChevronDown,ChevronRight,Download,Check,Clock,Pause,Play,MoreHorizontal,ExternalLink,ShieldCheck,Upload,Link,RefreshCw,Trash2,Pencil,KeyRound,LoaderCircle,Layers,Calendar,Eye,Image,Mail,Info} from 'lucide';
@@ -8,6 +9,7 @@ import './styles.css';
 import './v2.css';
 import './v4.css';
 import './v5.css';
+import './v6.css';
 
 const iconSet={LayoutDashboard,Globe,Plus,FileText,Send,ListOrdered,CheckCircle2,TriangleAlert,ChartNoAxesCombined,Users,Settings,LogOut,ArrowUpRight,ArrowRight,Search,Bell,Menu,X,ChevronDown,ChevronRight,Download,Check,Clock,Pause,Play,MoreHorizontal,ExternalLink,ShieldCheck,Upload,Link,RefreshCw,Trash2,Pencil,KeyRound,LoaderCircle,Layers,Calendar,Eye,Image,Mail,Info};
 const $=(s,root=document)=>root.querySelector(s), $$=(s,root=document)=>[...root.querySelectorAll(s)];
@@ -18,7 +20,7 @@ const cfg={url:import.meta.env.VITE_SUPABASE_URL,key:import.meta.env.VITE_SUPABA
 const initialAuthType=new URLSearchParams(location.hash.slice(1)).get('type');
 const supabase=cfg.url&&cfg.key?createClient(cfg.url,cfg.key,{auth:{persistSession:false,autoRefreshToken:true,detectSessionInUrl:true}}):null;
 const state={user:null,profile:null,websites:[],articles:[],campaigns:[],jobs:[],logs:[],profiles:[],settings:{},page:'overview',search:'',siteFilter:'all',jobFilter:'all',selected:new Set(),channel:null,loaded:false};
-const nav=[['overview','LayoutDashboard','Dashboard'],['websites','Globe','My Websites'],['imports','Upload','Import Websites'],['articles','FileText','Articles'],['publishing','Send','New Campaign'],['campaigns','Layers','Running Campaigns'],['queue','CheckCircle2','Publishing History'],['reports','ChartNoAxesCombined','Publishing Reports'],['discovery','Search','Publisher Discovery'],['users','Users','Team Management'],['tasks','ListOrdered','Tasks & Tickets'],['settings','Settings','Settings']];
+const nav=[['overview','LayoutDashboard','Dashboard'],['websites','Globe','My Websites'],['imports','Upload','Import Websites'],['articles','FileText','Articles'],['publishing','Send','New Campaign'],['campaigns','Layers','Running Campaigns'],['queue','CheckCircle2','Publishing History'],['reports','ChartNoAxesCombined','Publishing Reports'],['discovery','Search','Website Qualification'],['users','Users','Team Management'],['tasks','ListOrdered','Tasks & Tickets'],['settings','Settings','Settings']];
 let experience;
 const can=key=>state.profile?.role==='super_admin'||state.permissions?.includes(key);
 const admin=()=>can('websites.update');
@@ -39,7 +41,7 @@ async function load(){
   const values=await Promise.all(queries.map(t=>allRows(t,t==='settings'?'tenant_id':'created_at')));
   [state.websites,state.articles,state.campaigns,state.jobs,state.logs,state.profiles]=values;state.settings=values[6][0]??{};state.workers=values[7]||[];state.importBatches=values[8];state.metrics=values[9];state.websites=state.websites.map(w=>({...w,worker_online:state.workers.some(worker=>worker.active&&Date.parse(worker.last_seen_at)>Date.now()-120000)}));state.articles=state.articles.filter(a=>!a.archived_at);
   const extras=await Promise.all([can('reports.view')?api('report.list',{}):{reports:[]},can('tasks.read')?api('task.list',{}):{tasks:[]},can('publishers.research')?api('publisher.list',{}):{publishers:[],filters:state.settings.publisher_filters},can('reports.view')?allRows('publication_report_items'):[],can('campaigns.view')?allRows('smoke_test_runs'):[],can('tasks.manage')?api('task.assignees',{}):{people:[]}]);
-  state.assignees=extras[5].people;state.reports=extras[0].reports;state.tasks=extras[1].tasks;state.publishers=extras[2].publishers;state.publisherFilters=extras[2].filters;state.reportItems=extras[3];state.smokeRuns=extras[4];state.loaded=true;
+  state.assignees=extras[5].people;state.reports=extras[0].reports;state.tasks=extras[1].tasks;state.publishers=extras[2].publishers;state.publisherFilters=extras[2].filters;state.reportItems=extras[3];state.smokeRuns=extras[4];if(can('websites.read')){let offset=0;const readiness=new Map();do{const result=await api('inventory.list',{offset,limit:500});for(const item of result.items)readiness.set(item.id,item);state.qualificationPolicy=result.policy;offset=result.next_offset;}while(offset!==null);state.websites=state.websites.map(w=>({...w,...readiness.get(w.id)}));}state.loaded=true;
 }
 async function refresh(){await load();render();}
 function subscribe(){
@@ -168,7 +170,7 @@ function showLogs(jobId){const logs=jobId?state.logs.filter(l=>l.job_id===jobId)
 function exportReport(){const rows=state.jobs.map(j=>({job_id:j.id,campaign:state.campaigns.find(c=>c.id===j.campaign_id)?.campaign_name,article:state.articles.find(a=>a.id===j.article_id)?.title,website:state.websites.find(w=>w.id===j.website_id)?.website_name,status:j.status,scheduled_at:j.scheduled_at,published_at:j.published_at,attempts:j.attempts,published_url:j.published_url,error:j.error_message}));if(!rows.length)return toast('There are no publishing records to export yet.');const url=URL.createObjectURL(new Blob(['\ufeff'+csv(rows)],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='guestpost-report-'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(url);toast('CSV report exported.');}
 function userForm(user){modal(user?'Manage team access':'Invite a team member',`<form id="user-form">${!user?'<label>Email address<input name="email" type="email" required placeholder="editor@company.com"></label>':`<p>${esc(user.email)}</p>`}<label>Role<select name="role"><option value="editor">Editor</option><option value="admin" ${user?.role==='admin'?'selected':''}>Administrator</option></select></label><label class="checkbox-label"><input name="can_publish" type="checkbox" ${user?.can_publish?'checked':''}>Allow editorial approval and publishing</label>${user?`<label class="checkbox-label"><input name="active" type="checkbox" ${user.active?'checked':''}>Workspace access enabled</label>`:''}<div class="modal-footer"><button class="btn primary">${user?'Save access':'Send invitation'}</button></div></form>`);$('#user-form').onsubmit=e=>{e.preventDefault();run(async()=>{const data=Object.fromEntries(new FormData(e.target));await api(user?'user.update':'user.invite',{...data,id:user?.id,can_publish:!!data.can_publish,active:!!data.active});$('#modal').close();await refresh();toast(user?'Access updated.':'Invitation sent.');},e.submitter);};}
 
-experience=createV5Experience({can,state,$,$$,esc,icon,icons,api,run,refresh,load,render,navigate,heading,empty,modal,toast,admin,publisher,confirmAction,date,badge,jobRows,bindJobActions,editSite:site=>{editingSite=site;state.page='edit-website';render();},editor,supabase,DOMPurify});
+experience=createV6Experience({can,state,$,$$,esc,icon,icons,api,run,refresh,load,render,navigate,heading,empty,modal,toast,admin,publisher,confirmAction,date,badge,jobRows,bindJobActions,editSite:site=>{editingSite=site;state.page='edit-website';render();},editor,supabase,DOMPurify});
 
 async function boot(){
  const share=location.hash.match(/^#client-report=([a-f0-9]{64})$/);if(share)return openClientReport({token:share[1],url:cfg.url,key:cfg.key,root:$('#app'),esc});

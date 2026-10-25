@@ -27,6 +27,7 @@ begin
  select id into w from public.websites where tenant_id=t order by website_url limit 1;
  select id into w2 from public.websites where tenant_id=t and id<>w order by website_url limit 1;
  update public.websites set connection_status='connected',permission_status='verified',cms_type='custom' where id in (w,w2);
+ perform pg_temp.qualify_fixture(u,w);perform pg_temp.qualify_fixture(u,w2);
  c:=public.approve_and_create_campaign(u,a,v,'Saved article launch',array[w,w2],300,now(),'{}','manual');
  if not exists(select 1 from public.campaigns where id=c and article_id=a) or (select count(*) from public.articles where tenant_id=t)<>1 then raise exception 'Campaign did not reuse the saved article ID';end if;
  if (select status from public.articles where id=a)<>'approved' then raise exception 'Draft editorial approval did not commit with campaign creation';end if;

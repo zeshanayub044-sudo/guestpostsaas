@@ -1,0 +1,35 @@
+-- All accounts and domains below are isolated fixtures and are rolled back.
+begin;
+do $$ declare owner_id uuid:=gen_random_uuid();employee uuid:=gen_random_uuid();tenant uuid;site uuid;book uuid;started jsonb;manifest jsonb:='[{"name":"Original","header_row":3,"row_count":1,"headers":["URL"]}]';rowdata jsonb;denied boolean;sid uuid:=gen_random_uuid();begin
+ insert into auth.users(id,email) values(owner_id,'v6-owner-'||owner_id||'@fixture.invalid');select tenant_id into tenant from public.profiles where id=owner_id;
+ insert into public.tenant_invites(tenant_id,email,role,can_publish,full_name,password_change_required) values(tenant,'v6-operator-'||employee||'@fixture.invalid','publishing_operator',true,'V6 isolated operator',false);
+ insert into auth.users(id,email) values(employee,'v6-operator-'||employee||'@fixture.invalid');
+ insert into public.websites(tenant_id,owner_id,website_name,website_url,api_endpoint,cms_type,status,connection_status,permission_status,connection_method) values(tenant,owner_id,'Transactional publishing fixture','https://transactional-publisher.com','https://transactional-publisher.com/api','custom','active','connected','verified','api') returning id into site;
+ if private.actor_website_access(employee,site,'read') then raise exception 'Unassigned operator accessed website';end if;
+ perform public.assign_website_access(owner_id,site,employee,true,false,false);
+ if not private.actor_website_access(employee,site,'read') or not private.actor_website_access(employee,site,'publish') or private.actor_website_access(employee,site,'connect') then raise exception 'Website scopes not isolated';end if;
+ if private.website_is_ready(site) then raise exception 'Legacy connection bypassed source or quality';end if;
+ started:=public.start_workbook_import(owner_id,'source.csv',repeat('b',64),'isolated-path',manifest,'["canonical-source-proof"]');book:=(started->>'id')::uuid;
+ rowdata:=jsonb_build_array(jsonb_build_object('website_url','https://transactional-publisher.com','domain','transactional-publisher.com','website_name','Fixture','source_sheet','Original','row_number',4,'sequence_number',1,'status','pending','supplied_metrics',jsonb_build_object('domain_authority',99,'spam_score',0,'verification','supplied_unverified')));
+ denied:=false;begin perform public.import_workbook_chunk(owner_id,book,0,rowdata,'different-proof');exception when others then denied:=true;end;if not denied then raise exception 'Source chunk mismatch accepted';end if;
+ perform public.import_workbook_chunk(owner_id,book,0,rowdata,'canonical-source-proof');
+ if not (public.import_workbook_chunk(owner_id,book,0,rowdata,'canonical-source-proof')->>'replayed')::boolean then raise exception 'Committed chunk replay not idempotent';end if;
+ denied:=false;begin perform public.import_workbook_chunk(owner_id,book,0,rowdata||'[{}]'::jsonb,'canonical-source-proof');exception when others then denied:=true;end;if not denied then raise exception 'Committed chunk mutation accepted';end if;
+ perform public.seal_workbook_import(owner_id,book,false);
+ if private.website_is_ready(site) or private.website_state(site)->>'quality_status'<>'pending_seo_verification' then raise exception 'Supplied spreadsheet scores qualified';end if;
+ perform pg_temp.qualify_fixture(owner_id,site);
+ if not private.website_is_ready(site) or not public.website_publication_ready(employee,site) then raise exception 'Fully qualified assigned target denied';end if;
+ update public.website_metrics set value=5 where website_id=site and metric='spam_score';if private.website_is_ready(site) or private.website_state(site)->>'quality_status'<>'rejected_high_spam' then raise exception 'Spam score of five passed';end if;
+ update public.website_metrics set value=0 where website_id=site and metric='spam_score';update public.website_metrics set value=29 where website_id=site and metric='domain_authority';if private.website_is_ready(site) then raise exception 'DA below thirty passed';end if;
+ denied:=false;begin update public.website_metrics set value=99,provider='ahrefs' where website_id=site and metric='domain_authority';exception when check_violation then denied:=true;end;if not denied then raise exception 'Wrong provider was accepted for DA';end if;
+ update public.website_metrics set metric='domain_rating',value=99,provider='ahrefs' where website_id=site and metric='domain_authority';if private.website_is_ready(site) then raise exception 'Ahrefs DR substituted Moz DA';end if;
+ update public.website_metrics set metric='domain_authority',value=30,provider='moz',observed_at=now()-interval '31 days' where website_id=site and metric='domain_rating';if private.website_is_ready(site) then raise exception 'Stale metric passed';end if;
+ update public.website_metrics set observed_at=now() where website_id=site;update public.website_qualifications set reachability_evidence='{"content_sha":"changed-page"}' where website_id=site;if private.website_is_ready(site) then raise exception 'Changed content retained editorial approval';end if;
+ update public.website_qualifications set reachability_evidence=jsonb_build_object('content_sha',repeat('a',64)) where website_id=site;
+ perform public.assign_website_access(owner_id,site,employee,false,false,true);if public.website_publication_ready(employee,site) then raise exception 'Revoked assignment retained campaign access';end if;
+ insert into auth.sessions(id,user_id,created_at,updated_at) values(sid,employee,now(),now());perform set_config('request.jwt.claims',jsonb_build_object('sub',employee,'session_id',sid,'role','authenticated')::text,true);set local role authenticated;
+ if exists(select 1 from public.websites where id=site) then raise exception 'RLS leaked revoked website';end if;
+ if has_function_privilege('authenticated','public.create_campaign_v5(uuid,uuid,text,uuid[],integer,timestamptz,jsonb)','execute') or has_function_privilege('authenticated','public.website_publication_ready(uuid,uuid)','execute') then raise exception 'Browser can bypass resource guards';end if;
+ reset role;
+end $$;
+rollback;

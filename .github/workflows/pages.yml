@@ -2,6 +2,8 @@ name: Deploy GuestPost to GitHub Pages
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -32,17 +34,22 @@ jobs:
           deno-version: v2.5.6
       - name: Check and test publishing connectors
         run: |
-          deno check --config supabase/functions/deno.json supabase/functions/api/index.ts supabase/functions/publish-worker/index.ts supabase/functions/oauth-callback/index.ts supabase/functions/browser-bridge/index.ts supabase/functions/report-share/index.ts
-          deno test --config supabase/functions/deno.json --allow-env tests/edge_test.ts tests/transport_test.ts tests/connectors_test.ts tests/v3_edge_test.ts tests/v4_edge_test.ts tests/v5_edge_test.ts
+          npm run check:edge
+          npm run test:edge
+          npm run test:db
       - run: npm run build
         env:
           VITE_SUPABASE_URL: https://aiolueflrpraiaqvdscp.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_vH-ntWE5Lo8gzVETDIRTVg_Xq6jWW7G
+      - run: npm run test:ui
       - uses: actions/configure-pages@v5
+        if: github.ref == 'refs/heads/main'
       - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
         with:
           path: dist
   deploy:
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment:

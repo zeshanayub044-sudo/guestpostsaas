@@ -26,11 +26,7 @@ export async function campaignPlan(actor:any,b:any){
   if(mode==='category'&&!category)throw new Error('Choose a category for category-based allocation.');
   let connected=await rpc('eligible_websites',{p_actor:actor.id,p_content:article.content,p_category:category,p_language:language,p_platform:platform});
   let qualityExcluded=0;
-  if(b.quality===true){
-    const service=db();const {data:settings,error:settingsError}=await service.from('settings').select('quality_filters').eq('tenant_id',actor.tenant_id).single();
-    const {data:metrics,error:metricsError}=await service.from('website_metrics').select('*').eq('tenant_id',actor.tenant_id).eq('verification','provider_verified').gte('observed_at',new Date(Date.now()-90*86400000).toISOString());if(settingsError||metricsError)throw new Error('Website quality data could not be loaded.');
-    const filters=settings?.quality_filters||{};connected=connected.filter((site:any)=>{const m=Object.fromEntries((metrics||[]).filter((r:any)=>r.website_id===site.id).map((r:any)=>[r.metric,r]));const passed=m.domain_authority?.provider==='moz'&&Number(m.domain_authority.value)>=Number(filters.minimum_da??30)&&m.spam_score?.provider==='moz'&&Number(m.spam_score.value)<=Number(filters.maximum_spam??9)&&Number(m.estimated_organic_traffic?.value??-1)>=Number(filters.minimum_traffic??1000)&&(!filters.country||site.country===filters.country)&&(!filters.language||site.language===filters.language)&&(!filters.category||site.category.toLowerCase()===filters.category.toLowerCase());if(!passed)qualityExcluded++;return passed;});
-  }
+  // V6 qualification is mandatory inside eligible_websites and create_campaign; the client cannot disable it.
   const incompatible:string[]=[];
   const eligible=connected.filter((site:any)=>{try{validateArticleForSite(site,{...article,...(b.overrides?.[site.id]?articleData({...article,...b.overrides[site.id]}):{})});return true;}catch{incompatible.push(site.website_name);return false;}});
   const ids=(b.website_ids??[]).map(uuid);if(new Set(ids).size!==ids.length)throw new Error('Select each website only once.');

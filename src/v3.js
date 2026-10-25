@@ -1,11 +1,13 @@
 import catalog from '../supabase/functions/_shared/catalog.json' with {type:'json'};
 export function connectionLabel(site){
+  if(site.qualification?.auto_ready&&site.can_publish)return 'Ready for Publishing';
+  if(site.connection_status==='connected'&&site.qualification)return site.qualification.group==='rejected'?'Rejected / inactive':!site.qualification.spreadsheet_source?'Original spreadsheet required':site.qualification.quality_status==='pending_seo_verification'?'SEO verification pending':'Quality or permission review required';
   if(site.connection_status==='connected'&&site.permission_status!=='verified')return 'Publishing Permission Missing';
   if(site.connection_method==='browser'&&site.worker_online===false)return 'Connector Configuration Required';
-  return ({connected:'Ready for Publishing',authorization_required:'Authentication Required',setup_required:'Connector Configuration Required',checking:'Authentication Required',error:'Connection Failed',limited:'Publishing Permission Missing',revoked:'Authentication Required',untested:'Connector Configuration Required',manual:'Connector Configuration Required',unsupported:'Unsupported Automation'})[site.connection_status]||'Connector Configuration Required';
+  return ({connected:'Connection verified',authorization_required:'Authentication Required',setup_required:'Connector Configuration Required',checking:'Authentication Required',error:'Connection Failed',limited:'Publishing Permission Missing',revoked:'Authentication Required',untested:'Connector Configuration Required',manual:'Connector Configuration Required',unsupported:'Unsupported Automation'})[site.connection_status]||'Connector Configuration Required';
 }
 export function workerOnline(workers=[]){return workers.some(w=>w.active&&Date.parse(w.last_seen_at)>Date.now()-120000);}
-export function automaticallyEligible(site,workers=[]){return site.status==='active'&&site.connection_status==='connected'&&site.permission_status==='verified'&&site.cms_type!=='manual'&&(site.connection_method!=='browser'||workerOnline(workers));}
+export function automaticallyEligible(site,workers=[]){return site.qualification?.auto_ready===true&&site.can_publish===true&&site.status==='active'&&site.connection_status==='connected'&&site.permission_status==='verified'&&site.cms_type!=='manual'&&(site.connection_method!=='browser'||site.qualification?.worker_online===true);}
 export function connectionReport(site,esc){
   const report=site.connection_report||site.report||{};
   const platform=site.cms_type||site.platform,provider=catalog.find(p=>p.id===platform),status=site.connection_status||site.status;

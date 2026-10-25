@@ -1,4 +1,4 @@
-export const reportColumns=[['campaign_name','Campaign'],['article_title','Article'],['website_name','Website'],['domain','Domain'],['platform','Platform'],['published_url','Published URL'],['status','Verification'],['published_at','Published at'],['verified_at','Checked at']];
+export const reportColumns=[['campaign_name','Campaign'],['article_title','Article'],['website_name','Website'],['domain','Domain'],['platform','Platform'],['published_url','Published URL'],['status','Verification'],['published_at','Published at'],['verified_at','Checked at'],['target_backlinks','Verified target backlinks'],['anchor_text','Anchor text'],['link_rel','Link rel'],['assigned_employee','Assigned employee']];
 export const safeCell=value=>{const s=String(value??'');return /^[\s\u0000-\u001f]*[=+@-]/.test(s)?"'"+s:s;};
 export function reportCSV(items){return '\uFEFF'+[reportColumns.map(([,v])=>v),...items.map(r=>reportColumns.map(([k])=>safeCell(r[k])))].map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n');}
 export function downloadBlob(name,content,type){const url=URL.createObjectURL(content instanceof Blob?content:new Blob([content],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
@@ -8,7 +8,7 @@ export async function exportReport(format,data){
  if(format==='csv'){downloadBlob(name+'.csv',reportCSV(items),'text/csv;charset=utf-8');return;}
  if(format==='xlsx'){
   const XLSX=await import('xlsx');const rows=[reportColumns.map(([,label])=>label),...items.map(r=>reportColumns.map(([key])=>String(r[key]??'')))];const sheet=XLSX.utils.aoa_to_sheet(rows);
-  sheet['!cols']=[{wch:28},{wch:44},{wch:26},{wch:28},{wch:16},{wch:80},{wch:18},{wch:26},{wch:26}];sheet['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(0,rows.length-1),c:8}})};
+  sheet['!cols']=[{wch:28},{wch:44},{wch:26},{wch:28},{wch:16},{wch:80},{wch:18},{wch:26},{wch:26}];sheet['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:Math.max(0,rows.length-1),c:reportColumns.length-1}})};
   items.forEach((item,index)=>{if(/^https:\/\//.test(item.published_url||'')){const cell=sheet[XLSX.utils.encode_cell({r:index+1,c:5})];cell.l={Target:item.published_url,Tooltip:'Open exact published article'};}});
   const book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,'Publications');XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Campaign',data.campaign?.name||data.campaign_name||''],['Client',data.campaign?.client_name||data.client_name||''],['Exported at',new Date().toISOString()],['Verified URLs',verifiedURLs(items).length],['Verification','Captured evidence; availability may change after the check.']]),'Summary');
   downloadBlob(name+'.xlsx',XLSX.write(book,{bookType:'xlsx',type:'array'}),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');return;
