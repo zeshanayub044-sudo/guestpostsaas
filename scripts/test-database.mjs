@@ -35,7 +35,7 @@ for(const name of (await readdir('supabase/migrations')).filter(n=>n.endsWith('.
  try{await db.exec(sql);console.log('Migration passed: '+name);passed++;}catch(e){console.error('Migration failed: '+name+'\n'+e.message+'\n'+(e.where||'')+'\n'+(e.detail||''));await db.close();process.exit(1);}
 }
 const fixture=await readFile('tests/qualification-fixture.sql','utf8');
-for(const name of ['v6_database.sql','v4_database.sql','v5_database.sql','v3_database.sql']){
+const suites=['v7_database.sql','v6_database.sql','v4_database.sql','v5_database.sql','v3_database.sql'];const requestedSuite=process.argv[process.argv.indexOf('--suite')+1];if(process.argv.includes('--suite')&&!suites.includes(requestedSuite))throw new Error('Choose an existing SQL suite.');for(const name of process.argv.includes('--suite')?[requestedSuite]:suites){
  let sql=await readFile('tests/'+name,'utf8');
  sql=sql.replace(/begin;/i,()=> 'begin;\n'+fixture);
  try{await db.exec(sql);console.log('SQL suite passed: '+name);passed++;}catch(e){console.error('SQL suite failed: '+name+'\n'+e.message+'\n'+(e.where||'')+'\n'+(e.detail||''));await db.close();process.exit(1);}

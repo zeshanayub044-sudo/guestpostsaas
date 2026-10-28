@@ -6,7 +6,7 @@ import {requirePermission,auditActor} from './authorization.ts';
 import {importInventory} from './inventory.ts';
 
 export function providerMetric(value:any,max=Number.MAX_SAFE_INTEGER){return typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=max?value:null;}
-export function qualifyPublisher(metrics:any,filters:any={}){return assessQuality(metrics,{minimum_da:filters.minimum_da??30,maximum_spam:filters.maximum_spam??5,minimum_traffic:filters.minimum_traffic??1000,traffic_required:true}).passed;}
+export function qualifyPublisher(metrics:any,filters:any={}){return assessQuality(metrics,{minimum_da:filters.minimum_da??30,minimum_dr:filters.minimum_dr??30,maximum_spam:filters.maximum_spam??5,minimum_traffic:filters.minimum_traffic??1000,traffic_required:true}).passed;}
 export async function licensedMetrics(domain:string,ahrefs:any,moz:any,http:typeof request=request){
  const day=new Date().toISOString().slice(0,10),rows:any[]=[];
  const add=(provider:string,metric_name:string,metric_value:any,url:string)=>rows.push({provider,metric_name,metric_value,observed_at:new Date().toISOString(),verification:metric_value===null?'unknown':'provider_verified',evidence_reference:url});

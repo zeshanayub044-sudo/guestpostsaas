@@ -1,0 +1,2 @@
+-- Keep the access relation distinct from the PL/pgSQL actor record.
+do $$ declare d text;begin d:=pg_get_functiondef('public.workbook_qualification_page(uuid,uuid,integer,integer)'::regprocedure);if position('a(id) on a.id=r.website_id' in d)=0 then raise exception 'Inspect workbook page access alias';end if;execute replace(d,'a(id) on a.id=r.website_id','accessible(id) on accessible.id=r.website_id');end $$;

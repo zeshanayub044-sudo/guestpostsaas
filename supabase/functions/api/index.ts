@@ -1,3 +1,4 @@
+import {v7Actions,v7Action} from '../_shared/v7-api.ts';
 import {v6Actions,v6Action} from '../_shared/v6-api.ts';
 import {upgradeActions,upgradeAction} from '../_shared/upgrade-api.ts';
 import {browserActions,browserAction} from '../_shared/browser-api.ts';
@@ -18,8 +19,8 @@ async function execute(req:Request){
   const {data:actor}=await service.from('profiles').select('*').eq('id',user.id).eq('active',true).single();
   if(!actor)return {status:403,body:{error:'Your workspace access is disabled.'}};
   if(!await rpc('consume_api_rate',{p_actor:actor.id}))return {status:429,body:{error:'Too many requests. Wait one minute and retry.',code:'rate_limited',component:'api',retryable:true,timestamp:new Date().toISOString()}};
-  const raw=await req.text();if(raw.length>16000000)throw new Error('Request exceeds the size limit.');
-  const {action,data:b={}}=JSON.parse(raw);if(action!=='workbook.chunk'&&raw.length>700000)throw new Error('Request exceeds the size limit.');
+  const raw=await req.text();if(raw.length>28500000)throw new Error('Request exceeds the size limit.');
+  const {action,data:b={}}=JSON.parse(raw);if(!['workbook.chunk','workbook.intake'].includes(action)&&raw.length>700000)throw new Error('Request exceeds the size limit.');
   let sessionId;try{sessionId=JSON.parse(atob(authorization.replace(/^Bearer /i,'').split('.')[1].replaceAll('-','+').replaceAll('_','/'))).session_id;}catch{return {status:401,body:{error:'A valid account session is required.'}};}
   const passwordFlow=['account.context','account.change_password'].includes(action);
   if(!sessionId||!await rpc('validate_actor_session',{p_actor:actor.id,p_session:uuid(sessionId),p_password_flow:passwordFlow}))return {status:403,body:{error:actor.password_change_required?'Change your temporary password before accessing the workspace.':'This session was revoked. Sign in again.',code:'session_access_blocked'}};
@@ -30,6 +31,7 @@ async function execute(req:Request){
   if(action==='user.invite')return {status:200,body:await teamAction(actor,'team.create',{...b,full_name:b.full_name||b.email,authentication:'invitation'})};
   if(action==='user.update')return {status:200,body:await teamAction(actor,'team.update',b)};
   if(teamActions.has(action))return {status:200,body:await teamAction(actor,action,b)};
+  if(v7Actions.has(action))return {status:200,body:await v7Action(actor,action,b)};
   if(v6Actions.has(action))return {status:200,body:await v6Action(actor,action,b)};
   if(v5Actions.has(action))return {status:200,body:await v5Action(actor,action,b)};
   if(v4Actions.has(action))return {status:200,body:await v4Action(actor,action,b)};

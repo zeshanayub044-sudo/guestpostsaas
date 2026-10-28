@@ -10,3 +10,4 @@ test-results/
 browser-worker/diagnostics/
 **/storage-state*.json
 output/
+outputs/

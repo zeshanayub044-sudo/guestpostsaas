@@ -1,3 +1,15 @@
+# Version 7 deployment
+
+Use the existing `zeshanayub044-sudo/guestpostsaas` repository and `aiolueflrpraiaqvdscp` Supabase project. Apply additive migrations in filename order. Deploy `api`, `qualification-worker`, `publish-worker` and `browser-bridge` with all shared modules, `deno.json` and the pinned SheetJS vendor module. OAuth callback and restricted report-share endpoints retain their existing deployments unless their source changes. Body authentication remains mandatory with the established gateway settings.
+
+The original workbook intake requires the authenticated owner for protected account columns. The browser uploads the original through the authenticated API. The server parses, sanitizes, encrypts and verifies each canonical batch against committed source proofs. Retrying the same source resumes its saved import. No public URL or raw credential download endpoint is created.
+
+Qualification Cron uses an idle guard and global 16-lease ceiling. Publishing Cron and the sequential five-minute queue remain unchanged. Do not enable licensed metric requests or purchase hosting without the owner’s approval. The user confirmed that no worker host is currently available.
+
+GitHub Actions runs isolated Node, Edge, PostgreSQL and Chromium tests before Pages deployment. Exclude `.local`, output files, original spreadsheets, credentials, environment secrets and browser sessions from the source package.
+
+Previous deployment records follow.
+
 # Version 5 deployment
 
 Deploy to the existing guestpostsaas repository and dedicated aiolueflrpraiaqvdscp Supabase project. Apply migrations in filename order. The migration directory is authoritative; legacy schema.sql/hardening.sql files are historical snapshots.

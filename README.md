@@ -1,13 +1,12 @@
-# GuestPost Universal - Version 6
+# GuestPost Universal - Version 7
 
+V7 imports the owner’s complete original workbook, including headerless sheets, hyperlink targets, repeated column names, physical empty rows and duplicate domains. Resumable server-parsed batches preserve each source coordinate. Originals containing account values are encrypted with AES-256-GCM before private Storage retention; encryption keys remain in Vault. Ordinary source rows contain redacted metadata only. Imported account values are never automatically connected or tested.
 
-V6 uses only the owner’s original workbook for candidate selection. Every target needs fresh Moz DA >=30, Moz Spam Score strictly <5%, required traffic evidence, public reachability, editorial review and verified publishing authorization. Ahrefs DR never substitutes for Moz DA. Website assignments constrain employee access, campaign creation and dispatch.
+Automatic eligibility requires current provider-verified **Moz DA >=30, Ahrefs DR >=30 and Moz Spam Score <5%**, the configured traffic threshold, safe public reachability, editorial review, assigned access and verified create/publish permission. Missing evidence remains pending. A public CMS signal does not prove API support or account authorization.
 
-Import every data sheet with its original row references through **Import Websites**. The original file is stored privately and server-parsed; resumable chunks are compared with the saved source. Limits: 20 MB, 100,000 data rows, 200 sheets, 250 columns and 2,000 characters per source cell. Column headers are required; headerless files are rejected explicitly. Supplied scores and permission labels remain unverified. Prior research is preserved outside the active candidate lists.
+The separate qualification worker runs bounded read-only checks with a global 16-lease ceiling and at most three attempts for temporary failures. Campaigns retain a maximum of 500 unique websites and a minimum five-minute interval. Browser publishing needs a separate permitted Node/Playwright host. Licensed providers, an authorized CMS destination and genuine publication evidence are external acceptance requirements.
 
-The separate `qualification-worker` performs read-only checks. Publishing still requires at least five minutes between starts and permits at most 500 destinations per campaign. Browser publishing needs an authorized persistent Node/Playwright host. Licensed metric/AI credentials, real OAuth consent and a permitted CMS remain external setup requirements. An imported list or a contribution page grants no publishing rights.
-
-Validation: `npm test`, `npm run check:edge`, `npm run test:edge`, `npm run test:db`, `npm run test:browser`, and `npm run test:ui` after a build. SQL tests use isolated in-memory PostgreSQL with platform adapters; browser UI tests intercept backend requests and never create real accounts. Live deployment and external publication evidence are reported separately.
+See [V7 verification](docs/V7-VERIFICATION.md), [deployment](DEPLOYMENT.md) and [test results](TEST-RESULTS.md). The owner workbook and its account data are deliberately excluded from this public repository.
 
 A vanilla JavaScript publishing workspace with platform-specific connectors, Supabase Auth, encrypted credentials and a persistent sequential publishing queue.
 
