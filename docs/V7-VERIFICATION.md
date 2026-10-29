@@ -20,8 +20,9 @@ The original was encrypted before private Storage retention. Account values were
 - Kept temporary network failures pending with at most three attempts and durable backoff.
 - Added searchable inventory pages of 100 rows and resumable import history.
 - Exposed the actual public-check status, retry count and missing final observations in each website’s evidence dialog.
+- Made the final import seal idempotent: retrying the same completed source no longer restarts every website check. The isolated regression failed before this repair and passed afterward.
 
-Local checks: 18 Node tests, 50 Edge tests, six browser security tests, 14 controlled Chromium scenarios, nine isolated UI checks, and 21 migrations plus five SQL suites passed. After the final report repair, all 22 migrations and the V7 access/page regression suite passed again. The deployment workflow repeats the full suite. SQL uses isolated PostgreSQL with managed-platform adapters. The browser fixtures intercept backend traffic. These results certify the tested code paths, not third-party publishing access.
+Local checks: 18 Node tests, 50 Edge tests, six browser security tests, 14 controlled Chromium scenarios, nine isolated UI checks, and 21 migrations plus five SQL suites passed. After the final seal repair, all 23 migrations and the V7 access/page/checkpoint regression suite passed again. The deployment workflow repeats all five SQL suites. SQL uses isolated PostgreSQL with managed-platform adapters. The browser fixtures intercept backend traffic. These results certify the tested code paths, not third-party publishing access.
 
 Live authenticated checks passed for owner sign-in, complete 3,980-site inventory reads, zero unverified automatic targets, browser RLS reads, preservation of the original retirement source, and the disabled prior employee fixture. No campaign, publication job or browser worker was created. Background public checks run durably after the dashboard closes. Individual observations retain their actual check timestamps and outcomes.
 

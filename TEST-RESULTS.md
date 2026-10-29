@@ -1,6 +1,6 @@
 # V7 verification
 
-See [the V7 evidence and acceptance matrix](docs/V7-VERIFICATION.md). The full owner workbook is imported with encrypted original retention and protected ordinary records. Local verification passed 18 Node tests, 50 Edge tests, six browser security tests, 14 controlled Chromium scenarios, nine isolated UI checks, and 26 migration/SQL-suite outcomes before the final report repair. All 22 migrations and the focused V7 SQL suite then passed with that repair. Actual CMS publishing, licensed provider metrics and browser hosting remain blocked by missing dependencies. Zero live publications are claimed.
+See [the V7 evidence and acceptance matrix](docs/V7-VERIFICATION.md). The full owner workbook is imported with encrypted original retention and protected ordinary records. Local verification passed 18 Node tests, 50 Edge tests, six browser security tests, 14 controlled Chromium scenarios, nine isolated UI checks, and 26 migration/SQL-suite outcomes before the final report repair. All 23 migrations and the focused V7 SQL suite then passed with the final report and seal repairs. Actual CMS publishing, licensed provider metrics and browser hosting remain blocked by missing dependencies. Zero live publications are claimed.
 
 Previous verification records follow.
 

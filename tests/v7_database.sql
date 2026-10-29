@@ -4,6 +4,11 @@ do $$ declare actor uuid:=gen_random_uuid();other_actor uuid:=gen_random_uuid();
  insert into auth.users(id,email) values(other_actor,'v7-other-'||other_actor||'@fixture.invalid');
  insert into public.websites(tenant_id,owner_id,website_name,website_url,api_endpoint,cms_type,status,connection_status,permission_status,connection_method) values(tenant,actor,'V7 isolated website','https://v7-isolated.publisher.org','https://v7-isolated.publisher.org/api','custom','active','connected','verified','api') returning id into site;
  perform pg_temp.qualify_fixture(actor,site);if not private.website_is_ready(site) then raise exception 'Fully qualified three-provider fixture blocked';end if;
+ declare before_count bigint;begin
+  select count(*) into before_count from public.qualification_checks;
+  perform public.seal_workbook_import(actor,(select workbook_id from public.import_rows where website_id=site limit 1),false);
+  if (select count(*) from public.qualification_checks)<>before_count then raise exception 'Retrying a sealed workbook must not enqueue its websites again';end if;
+ end;
  if not exists(select 1 from private.readable_website_ids(actor) x where x=site) or exists(select 1 from private.readable_website_ids(other_actor) x where x=site) then raise exception 'Paged inventory changed tenant access';end if;
  if jsonb_array_length(public.inventory_readiness(actor))<>1 then raise exception 'Paged owner inventory failed';end if;
  if jsonb_array_length(public.workbook_qualification_page(actor,(select workbook_id from public.import_rows where website_id=site limit 1)))<>1 then raise exception 'Bounded qualification page failed';end if;
