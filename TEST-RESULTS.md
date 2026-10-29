@@ -4,6 +4,8 @@ See [the V7 evidence and acceptance matrix](docs/V7-VERIFICATION.md). The full o
 
 Previous verification records follow.
 
+Continuation on 29 October: the qualification-batch failure regression reproduced premature response and skipped sibling tasks. The repaired batch waits for every task and suppresses private error details. All Edge entrypoints type-check and 52 Edge tests pass. Worker version 4 is deployed to the same project; a bounded recovery targets only the 43 checks that previously exhausted their leases. Recovery observations are separate from licensed SEO and publishing acceptance.
+
 # V6 verification — 26 October 2026
 
 - 18 Node import/report tests; 45 Edge transport, connector, source-parser and qualification tests; 6 browser security tests.

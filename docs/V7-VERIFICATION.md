@@ -21,6 +21,7 @@ The original was encrypted before private Storage retention. Account values were
 - Added searchable inventory pages of 100 rows and resumable import history.
 - Exposed the actual public-check status, retry count and missing final observations in each website’s evidence dialog.
 - Made the final import seal idempotent: retrying the same completed source no longer restarts every website check. The isolated regression failed before this repair and passed afterward.
+- Fixed early termination of a qualification batch when one task rejects. The worker waits for all eight bounded tasks to settle, including synchronous failures, before responding. Both new regressions failed against the previous behavior and passed after the repair; type checks and all 52 Edge tests passed. The global 16-lease ceiling and three-attempt policy are unchanged.
 
 Local checks: 18 Node tests, 50 Edge tests, six browser security tests, 14 controlled Chromium scenarios, nine isolated UI checks, and 21 migrations plus five SQL suites passed. After the final seal repair, all 23 migrations and the V7 access/page/checkpoint regression suite passed again. The deployment workflow repeats all five SQL suites. SQL uses isolated PostgreSQL with managed-platform adapters. The browser fixtures intercept backend traffic. These results certify the tested code paths, not third-party publishing access.
 
