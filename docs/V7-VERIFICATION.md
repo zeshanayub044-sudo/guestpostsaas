@@ -19,6 +19,7 @@ The original was encrypted before private Storage retention. Account values were
 - Retained assignments, editorial review and explicit consent before licensed metric refresh in the V7 evidence dialog.
 - Kept temporary network failures pending with at most three attempts and durable backoff.
 - Added searchable inventory pages of 100 rows and resumable import history.
+- Exposed the actual public-check status, retry count and missing final observations in each website’s evidence dialog.
 
 Local checks: 18 Node tests, 50 Edge tests, six browser security tests, 14 controlled Chromium scenarios, nine isolated UI checks, and 21 migrations plus five SQL suites passed. After the final report repair, all 22 migrations and the V7 access/page regression suite passed again. The deployment workflow repeats the full suite. SQL uses isolated PostgreSQL with managed-platform adapters. The browser fixtures intercept backend traffic. These results certify the tested code paths, not third-party publishing access.
 
